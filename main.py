@@ -7,12 +7,13 @@ import hashlib
 import io
 import os
 import secrets
+import time as pytime
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import (JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint,
                         create_engine, text)
@@ -245,6 +246,8 @@ def user_from(request, db):
 def get_settings(db):
     s = dict(DEFAULTS)
     s.update({r.key: r.value for r in db.query(Setting)})
+    s["feedback_email"] = os.environ.get("FEEDBACK_EMAIL", "")  # shown as a feedback link in the app
+    s["version"] = "1.0"
     return s
 
 
@@ -267,19 +270,29 @@ def new_session(db, u):
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     p = request.url.path
+    who = ""
     if p.startswith("/api/") and p not in PUBLIC:
         db = SessionLocal()
         try:
             u = user_from(request, db)
             if not u:
                 return JSONResponse({"detail": "Please sign in."}, 401)
-            manager_area = p.startswith("/api/backup") or (
+            who = u.name
+            manager_area = p.startswith(("/api/backup", "/api/audit")) or (
                 p.startswith(MANAGER_ONLY) and (request.method != "GET" or p.startswith("/api/users")))
             if u.role != "manager" and manager_area:
                 return JSONResponse({"detail": "Only the manager can do this."}, 403)
         finally:
             db.close()
-    return await call_next(request)
+    resp = await call_next(request)
+    if who and request.method != "GET" and resp.status_code < 400 and p != "/api/logout":
+        db = SessionLocal()
+        try:  # audit trail: who changed what, and when
+            db.add(AuditLog(user_name=who, method=request.method, path=p, timestamp=local_now()))
+            db.commit()
+        finally:
+            db.close()
+    return resp
 
 
 class SettingsIn(BaseModel):
@@ -293,7 +306,7 @@ class SettingsIn(BaseModel):
 class SetupIn(SettingsIn):
     name: str = Field(min_length=1)
     username: str = Field(min_length=2)
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=8)
     demo: bool = False
 
 
@@ -305,7 +318,7 @@ class LoginIn(BaseModel):
 class UserIn(BaseModel):
     name: str = Field(min_length=1)
     username: str = Field(min_length=2)
-    password: Optional[str] = Field(None, min_length=6)
+    password: Optional[str] = Field(None, min_length=8)
     role: str = Field("staff", pattern="^(manager|staff)$")
 
 
@@ -334,11 +347,21 @@ def setup(body: SetupIn, db: Session = Depends(get_db)):
     return new_session(db, u)
 
 
+FAILS = {}  # (ip, username) -> timestamps of recent failed logins
+
+
 @app.post("/api/login")
-def login(body: LoginIn, db: Session = Depends(get_db)):
-    u = db.query(User).filter_by(username=body.username.strip().lower()).first()
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "").split(",")[0].strip()
+    key, now = (ip, body.username.strip().lower()), pytime.time()
+    FAILS[key] = [t for t in FAILS.get(key, []) if now - t < 600]
+    if len(FAILS[key]) >= 5:
+        raise HTTPException(429, "Too many attempts. Please wait 10 minutes.")
+    u = db.query(User).filter_by(username=key[1]).first()
     if not u or not check_pw(body.password, u.pw_hash):
+        FAILS[key].append(now)
         raise HTTPException(401, "Wrong username or password.")
+    FAILS.pop(key, None)
     return new_session(db, u)
 
 
@@ -444,6 +467,7 @@ def delete_child(cid: int, db: Session = Depends(get_db)):
     c = get_or_404(db, Child, cid)
     db.query(Appointment).filter_by(child_id=cid).delete()
     db.query(AttendanceLog).filter_by(child_id=cid).delete()
+    db.query(Handover).filter_by(child_id=cid).delete()
     db.delete(c)  # meal logs go with it (ON DELETE CASCADE)
     db.commit()
     return {"ok": True}
@@ -643,12 +667,16 @@ def roster(now: Optional[str] = None, db: Session = Depends(get_db)):
         t = types.get(a.category)
         appts.setdefault(a.child_id, []).append(
             {**d(a), "state": state, "minutes_until": s - cur, "color": t.color if t else "#64748b"})
+    hov = {}
+    for h in db.query(Handover).filter_by(day=today.isoformat()).order_by(Handover.id):
+        hov[h.child_id] = {"left_at": h.left_at.isoformat(), "left_with": h.left_with,
+                           "back_at": h.back_at.isoformat() if h.back_at else None}
     result = []
     for c in db.query(Child).order_by(Child.first_name):
         ls = last_status.get(c.id)
         st = statuses.get(ls.status_id) if ls else default
         ln = last_note.get(c.id)
-        result.append({**d(c), "status": d(st) if st else None,
+        result.append({**d(c), "status": d(st) if st else None, "handover": hov.get(c.id),
                        "status_since": ls.timestamp.isoformat() if ls else None,
                        "last_note": {"note": ln.note, "timestamp": ln.timestamp.isoformat()} if ln else None,
                        "appointments": sorted(appts.get(c.id, []), key=lambda a: a["start_time"])})
@@ -716,6 +744,63 @@ def seed(lang="de", demo=True):
                     for dw, k, ti, s, e, no, so in plan])
     db.commit()
     db.close()
+
+
+class Handover(Base):
+    """A child was handed over to someone (e.g. for physio) and later brought back."""
+    __tablename__ = "handovers"
+    id = Column(Integer, primary_key=True)
+    child_id = Column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=False)
+    day = Column(String, nullable=False)
+    left_at = Column(DateTime, default=local_now)
+    left_by = Column(String, default="")  # staff member who handed the child over
+    left_with = Column(String, default="")  # who took the child
+    back_at = Column(DateTime, nullable=True)
+    back_by = Column(String, default="")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+    id = Column(Integer, primary_key=True)
+    user_name = Column(String, default="")
+    method = Column(String, default="")
+    path = Column(String, default="")
+    timestamp = Column(DateTime, default=local_now)
+
+
+class HandoverIn(BaseModel):
+    child_id: int
+    action: str = Field(pattern="^(out|back)$")
+    person: str = Field("", max_length=80)
+
+
+@app.post("/api/handover", status_code=201)
+def handover(body: HandoverIn, request: Request, db: Session = Depends(get_db)):
+    get_or_404(db, Child, body.child_id)
+    u = user_from(request, db)
+    who, now, person = (u.name if u else ""), local_now(), body.person.strip()
+    today = now.date().isoformat()
+    open_ = (db.query(Handover).filter_by(child_id=body.child_id, day=today, back_at=None)
+             .order_by(Handover.id.desc()).first())
+    if body.action == "out":
+        if open_:
+            raise HTTPException(400, "Child is already out.")
+        db.add(Handover(child_id=body.child_id, day=today, left_at=now, left_by=who, left_with=person))
+        note = "Übergeben an " + person if person else "Übergeben"
+    else:
+        if not open_:
+            raise HTTPException(400, "Child is not out.")
+        open_.back_at, open_.back_by = now, person or who
+        note = "Zurück" + (" mit " + person if person else "")
+    db.add(AttendanceLog(child_id=body.child_id, note=f"{note} ({who})", timestamp=now))
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/audit")
+def audit(db: Session = Depends(get_db)):
+    rows = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(60)
+    return [{"user": r.user_name, "what": f"{r.method} {r.path}", "at": r.timestamp.isoformat()} for r in rows]
 
 
 Base.metadata.create_all(engine)
@@ -832,6 +917,7 @@ def install_upgrades():
     with engine.begin() as c:
         c.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_att_child_ts ON attendance_logs (child_id, timestamp)")
         c.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_appt_child ON appointments (child_id)")
+        c.execute(text("DELETE FROM audit_log WHERE timestamp < :t"), {"t": local_now() - timedelta(days=90)})
         cut = (local_now().date() - timedelta(days=30)).isoformat()
         c.execute(text("DELETE FROM meal_logs WHERE day < :cut"), {"cut": cut})
 
@@ -842,3 +928,22 @@ install_upgrades()
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html")
+
+
+@app.get("/manifest.json")
+def manifest():
+    return JSONResponse({"name": "Kindle", "short_name": "Kindle", "start_url": "/", "display": "standalone",
+                         "background_color": "#0f6b8a", "theme_color": "#0f6b8a",
+                         "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}]})
+
+
+@app.get("/icon.svg")
+def icon():
+    return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#0f6b8a"/>'
+                    '<text x="50" y="68" font-size="58" text-anchor="middle" fill="#fff" font-family="sans-serif" font-weight="700">K</text></svg>',
+                    media_type="image/svg+xml")
+
+
+@app.get("/sw.js")
+def sw():
+    return Response("self.addEventListener('fetch',()=>{});", media_type="application/javascript")
