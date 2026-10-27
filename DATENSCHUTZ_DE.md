@@ -9,4 +9,4 @@
 - **Schutz:** Verschlüsselte Verbindung, Passwörter gehashed, Sperre nach 5 Fehlversuchen, Änderungsprotokoll (90 Tage).
 - **Löschung:** Kind löschen entfernt Stammdaten, Protokolle und Übergaben. Mahlzeiten-Einträge werden nach 30 Tagen automatisch gelöscht.
 - **Backup:** Nur durch die Leitung, enthält alle Kinderdaten und ist sicher aufzubewahren.
-- **Kontakt:** [Name, E-Mail]
+- **Kontakt:** wird in "einstellungen" angezeigt
