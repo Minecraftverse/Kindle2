@@ -1,714 +1,173 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kindle</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hort Manager</title>
 <style>
-:root,[data-theme=wald]{--bg:#eef3f3;--ink:#12302f;--head:#12302f;--headtx:#fff;--alert:#f5a524;--alerttx:#12302f;--btn:#12302f;--line:#c5d3d3}
-[data-theme=himmel]{--bg:#eef3fb;--ink:#12274a;--head:#1e3a8a;--headtx:#fff;--alert:#fbbf24;--alerttx:#12274a;--btn:#1e3a8a;--line:#c3d0e8}
-[data-theme=sonne]{--bg:#fff3e6;--ink:#431407;--head:#9a3412;--headtx:#fff;--alert:#facc15;--alerttx:#431407;--btn:#9a3412;--line:#ecc9a8}
-[data-theme=beere]{--bg:#f5effa;--ink:#2e1065;--head:#6b21a8;--headtx:#fff;--alert:#fbbf24;--alerttx:#2e1065;--btn:#6b21a8;--line:#d8c3ec}
-[data-theme=kontrast]{--bg:#fff;--ink:#000;--head:#000;--headtx:#fff;--alert:#ffe600;--alerttx:#000;--btn:#000;--line:#000}
-body{font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
-html.simple{font-size:21px} .simple .adv{display:none!important}
-.simple main{display:block}.simple #grid{grid-template-columns:repeat(auto-fill,minmax(22rem,1fr))!important}
-.bg-head{background:var(--head);color:var(--headtx)} .bg-alert{background:var(--alert);color:var(--alerttx)}
-.bg-btn{background:var(--btn);color:#fff} .card{background:#fff;border:2px solid var(--line)}
-.b-alert{border-color:var(--alert)!important} .b-away{border-color:#3b82f6!important}
-button,input,select{touch-action:manipulation}
-.btn{min-height:44px;padding:0 14px;border-radius:12px;font-weight:700;background:#e2e8f0;color:#0f172a}
-.btn.bg-btn{background:var(--btn);color:#fff}
-.inp{min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 10px;background:#fff;color:#000;width:100%}
-:focus-visible{outline:3px solid var(--alert);outline-offset:2px}
-@media (prefers-reduced-motion:reduce){.animate-pulse{animation:none}}
-.sched-wrap{overflow:auto;max-height:70vh;border:2px solid var(--line);border-radius:12px;background:#fff}
-.sched{border-collapse:collapse;width:100%;min-width:720px;font-size:13px}
-.sched th,.sched td{border:1px solid #cbd5e1;padding:4px 6px;vertical-align:top}
-.sched th{background:#f1f5f9;position:sticky;top:0;z-index:2;font-weight:800}
-.sched th.time-col,.sched td.time-col{position:sticky;left:0;background:#f8fafc;z-index:1;min-width:88px;font-weight:700;white-space:nowrap}
-.sched th.time-col{z-index:3}
-.sched td.cell{cursor:pointer;min-width:110px;min-height:52px;transition:background .12s}
-.sched td.cell:hover{background:#fef9c3}
-.sched td.cell.lunch{background:#fff7ed}
-.sched td.cell.shared-hint{box-shadow:inset 0 0 0 2px #f59e0b33}
-.sched .cell-title{font-weight:800;line-height:1.2}
-.sched .cell-meta{font-size:11px;opacity:.75;line-height:1.25}
-.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:1rem;overflow:auto}
-.panel-card{background:#fff;border-radius:16px;border:2px solid var(--line);max-width:960px;width:100%;padding:1.25rem;margin:1rem 0}
-</style>
-</head>
-<body class="min-h-screen">
-<div id="auth" class="hidden p-4"></div>
-<div id="app" class="hidden">
-<header class="sticky top-0 z-20 bg-head px-4 py-3 flex flex-wrap items-center gap-3">
-  <img id="logo" class="h-11 rounded hidden" alt="">
-  <div class="mr-auto"><h1 id="hname" class="text-xl font-extrabold leading-tight"></h1><div id="clock" class="text-sm opacity-80"></div></div>
-  <input id="q" class="inp !w-56" data-p="search" oninput="S.q=this.value;render()">
-  <select id="group" class="inp !w-40" onchange="S.group=this.value;render()"></select>
-  <select id="sf" class="inp !w-44 adv" onchange="S.sf=this.value;render()"></select>
-  <button class="btn" onclick="openChild(null)" data-i="addChild"></button>
-  <button class="btn" onclick="openPlan()" data-i="plan"></button>
-  <button class="btn" onclick="openApptPlan()" data-i="apptPlan"></button>
-  <button id="settingsBtn" class="btn bg-alert" onclick="openSettings()" data-i="settings"></button>
-  <button id="easyBtn" class="btn" onclick="toggleSimple()"></button>
-  <button class="btn" onclick="toggleLang()" id="langBtn"></button>
-  <button class="btn" onclick="logout()"><span id="who"></span> &#9167;</button>
-</header>
-<div id="banner" class="px-4 pt-4 space-y-2"></div>
-<main class="p-4 grid gap-4 xl:grid-cols-[1fr_340px]">
-  <div id="grid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 content-start"></div>
-  <aside class="adv card rounded-2xl p-4 h-fit xl:sticky xl:top-24">
-    <h2 class="font-extrabold text-lg mb-2" data-i="logTitle"></h2><div id="logs" class="space-y-2 max-h-[70vh] overflow-auto text-sm"></div>
-  </aside>
-</main>
-</div>
-<div id="panel" class="hidden panel-overlay" onclick="if(event.target===this)closePanel()"></div>
+:root{--bg:#eef2f4;--card:#fff;--tx:#14262e;--mu:#62767f;--ac:#0f6b8a;--ln:#d5dee2;--bad:#b42318;--warn:#a65b00;--ok:#1b7a3d;--okbg:#e2f4e8;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1a1f;--card:#17252c;--tx:#e6eef1;--mu:#94a9b2;--ac:#5cc3e4;--ln:#2a3d46;--bad:#ff8a80;--warn:#ffc266;--ok:#6fdc97;--okbg:#17372a}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+button,input,select,textarea{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 12px 6px;border-bottom:1px solid var(--ln)}
+header{display:flex;align-items:center;gap:8px;margin-bottom:8px}header b{font-size:1.15rem}
+.sp{flex:1}
+#tabs{display:flex;gap:6px;margin-bottom:8px}
+#tabs button{flex:1;padding:10px;border:0;border-radius:10px;background:var(--card);font-weight:600;cursor:pointer}
+#tabs button.on{background:var(--ac);color:#fff}
+#q{width:100%;padding:10px 12px;border:1px solid var(--ln);border-radius:10px;background:var(--card);margin-bottom:8px}
+#chips{display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding-bottom:4px}
+.chip{border:1.5px solid var(--c,var(--ln));background:var(--card);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:.9rem}
+.chip.on{background:var(--c,var(--ac));border-color:var(--c,var(--ac));color:#fff}
+#main{padding:12px;max-width:980px;margin:0 auto}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:12px}
+.card.ok{background:var(--okbg);color:var(--ok);font-weight:600}
+.card.bulk{display:flex;flex-wrap:wrap;gap:6px;align-items:center;position:sticky;top:150px;z-index:4;border:2px solid var(--ac)}
+.li{padding:3px 0}.mu{color:var(--mu);font-size:.9rem}
+details{background:var(--card);border-radius:12px;margin-bottom:10px;overflow:hidden}
+summary{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:color-mix(in srgb,var(--ac) 10%,var(--card))}
+summary .chip{margin-left:auto}
+.row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--ln)}
+.row input[type=checkbox]{width:22px;height:22px;flex:none}
+.nm{flex:1;min-width:0}
+.row select{padding:8px;border:2px solid var(--ln);border-radius:8px;background:var(--card)}
+.b{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:.78rem;font-weight:600}
+.b.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.b.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.mealsw{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.mealsw button{padding:14px;border:2px solid var(--ln);border-radius:14px;background:var(--card);cursor:pointer;font-size:1.05rem}
+.mealsw button b{font-size:1.6rem}
+.mealsw button.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,var(--card))}
+.bar{height:10px;background:var(--ln);border-radius:9px;overflow:hidden;margin-bottom:10px}
+.bar i{display:block;height:100%;background:var(--ok);transition:width .3s}
+.tools{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.gh{display:flex;align-items:center;gap:8px;margin:14px 0 6px}.gh .chip{margin-left:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.tile{position:relative;text-align:left;padding:10px 10px 10px 36px;min-height:56px;border:2px solid var(--ln);border-radius:12px;background:var(--card);cursor:pointer}
+.tile .ck{position:absolute;left:9px;top:11px;width:20px;height:20px;border:2px solid var(--ln);border-radius:6px;font-size:.85rem;line-height:16px;text-align:center;color:#fff}
+.tile.ate{background:var(--okbg);border-color:var(--ok)}.tile.ate .ck{background:var(--ok);border-color:var(--ok)}
+.tile.away{opacity:.55}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.card input:not([type=checkbox]),textarea{padding:9px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);width:100%}
+textarea{margin:8px 0}
+.pri{padding:10px 16px;border:0;border-radius:10px;background:var(--ac);color:#fff;font-weight:600;cursor:pointer}
+:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.auth{max-width:360px;margin:12vh auto 0;display:grid;gap:10px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,80px);background:var(--tx);color:var(--bg);padding:10px 18px;border-radius:99px;transition:transform .25s;z-index:9}
+#toast.show{transform:translate(-50%,0)}
+</style></head><body>
+<div id="app"></div><div id="toast"></div>
 <script>
-const LANGS=["de","en"];
-const LOCS=["de-CH","en-GB"];
-const T={
-search:["Suchen…","Search…"],addChild:["+ Kind","+ Child"],plan:["Stundenplan","Schedule"],apptPlan:["Terminplan","Appointments"],settings:["Einstellungen","Settings"],
-easy:["Einfach","Easy"],logTitle:["Tagesprotokoll","Daily log"],setupTitle:["Hort einrichten","Set up Hort"],
-setupBtn:["Einrichten","Set up"],login:["Anmelden","Sign in"],hortName:["Hort-Name","Hort name"],
-hortCode:["Hort-Code","Hort code"],hortCodePh:["z. B. sonne","e.g. sonne"],
-theme:["Theme","Theme"],mgrAcc:["Manager-Konto","Manager account"],uName:["Anzeigename","Display name"],
-uUser:["Benutzername","Username"],uPw:["Passwort","Password"],demo:["Beispieldaten laden","Load sample data"],
-trustIp:["Diesen PC / diese IP für den Hort freigeben","Trust this PC / IP for this Hort"],
-trustedHint:["Vertrauenswürdige IP – ein Klick zum Weiter","Trusted IP – one click to continue"],
-check:["Bitte alle Pflichtfelder prüfen.","Please check required fields."],
-confDel:["Wirklich löschen?","Really delete?"],del:["Löschen","Delete"],
-manager:["Manager","Manager"],staff:["Mitarbeitende","Staff"],brand:["Darstellung","Branding"],
-logo:["Logo (URL oder leer)","Logo (URL or empty)"],users:["Konten","Accounts"],
-statuses:["Status","Statuses"],types:["Terminarten","Appointment types"],
-newUser:["Neues Konto","New account"],save:["Speichern","Save"],
-notesPh:["Notiz…","Note…"],timeFrom:["Von","From"],timeTo:["Bis","To"],
-planTitle:["Stundenplan","Weekly schedule"],
-planHelp:["Excel-ähnlicher Wochenplan. «Gemeinsam» gilt für alle Gruppen. Pro Gruppe eigener Plan.","Spreadsheet-style weekly plan. «Shared» applies to all groups. Each group has its own plan."],
-shared:["Gemeinsam (alle Gruppen)","Shared (all groups)"],
-groupPlan:["Gruppenplan","Group plan"],
-lunch:["Mittagessen","Lunch"],program:["Programm","Programme"],
-noPlan:["Noch keine Zeitslots. Manager können unter Stundenplan Zeitraster anlegen.","No time slots yet. Managers can add periods under Schedule."],
-addSlot:["+ Zeitslot","+ Time slot"],editSlots:["Zeitraster bearbeiten","Edit time periods"],
-cellEdit:["Zelle bearbeiten","Edit cell"],title:["Fach / Aktivität","Subject / activity"],
-room:["Raum","Room"],teacher:["Lehrperson","Teacher"],notes:["Notizen","Notes"],
-clearCell:["Leeren","Clear"],kind:["Art","Type"],
-todayLunch:["Heute zu Mittag","Today’s lunch"],
-slotsTitle:["Zeitraster (Zeilen)","Time periods (rows)"],
-trustedIps:["Vertrauenswürdige IPs","Trusted IPs"],
-removeTrust:["IP entfernen","Remove IP"],
-noTrusted:["Keine freigegebenen IPs.","No trusted IPs."],
-yourIp:["Ihre IP","Your IP"],
-appt:["Termin","Appointment"],
-newAppt:["+ Termin","+ Appointment"],
-apptTitle:["Titel (z. B. Physio)","Title (e.g. Physio)"],
-apptType:["Art","Type"],
-recurrence:["Wiederholung","Recurrence"],
-weekly:["Wöchentlich","Weekly"],
-biweekly:["Alle 2 Wochen","Bi-weekly"],
-once:["Einmalig","One-off"],
-weekday:["Wochentag","Weekday"],
-date:["Datum","Date"],
-duration:["Dauer (Min.)","Duration (min)"],
-remind:["Erinnerung (Min. vorher)","Remind (min before)"],
-remindHelp:["Karte und Banner leuchten ab dieser Zeit vor dem Termin.","Card and banner highlight from this many minutes before."],
-noAppts:["Keine Termine.","No appointments."],
-upcoming:["Bald","Soon"],
-awayNow:["Jetzt unterwegs","Away now"],
-laterToday:["Später heute","Later today"],
-done:["Erledigt","Done"],
-editChild:["Kind bearbeiten","Edit child"],
-apptPlanTitle:["Terminplan (Woche)","Appointment week plan"],
-apptPlanHelp:["Alle Termine der Kinder in dieser Woche. Wöchentlich / alle 2 Wochen / einmalig.","All children’s appointments this week. Weekly / bi-weekly / one-off."],
-prevWeek:["← Vorherige","← Previous"],
-thisWeek:["Diese Woche","This week"],
-nextWeek:["Nächste →","Next →"],
-backup:["Backup","Backup"],
-exportData:["Daten exportieren","Export data"],
-importData:["Backup importieren","Import backup"],
-importWarn:["Import ersetzt Kinder, Termine, Stundenplan und Status dieses Horts. Fortfahren?","Import replaces children, appointments, schedule and statuses for this Hort. Continue?"],
-dbHint:["Datenbank","Database"],
-themes:[["Wald","Himmel","Sonne","Beere","Kontrast"],["Forest","Sky","Sun","Berry","Contrast"]],
-};
-const EMAP={
-"Already set up.":"setupDone","Wrong hort code, username or password.":"badLogin",
-"Wrong username or password.":"badLogin","Please sign in.":"needLogin",
-"Only the manager can do this.":"mgrOnly","Name already taken.":"nameTaken",
-"At least one manager is required.":"needMgr","Hort code already taken.":"codeTaken",
-"Not trusted.":"notTrusted","Not found.":"notFound",
-};
-const S={pub:{},me:null,roster:[],statuses:[],types:[],logs:[],slots:[],cells:[],q:"",group:"",sf:"",theme:"wald",logo:"",planGroup:""};
-let L=localStorage.lang||"de",TOKEN=localStorage.token||"";
-const li=()=>LANGS.indexOf(L),LOC=()=>LOCS[li()];
-const t=(k,...a)=>{let s=T[k]?T[k][li()]:k;a.forEach((v,i)=>s=s.replace("{"+i+"}",v));return s};
-const $=s=>document.querySelector(s);
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const DAYS=()=>[...Array(7)].map((_,i)=>new Date(2024,0,1+i).toLocaleDateString(LOC(),{weekday:"long"}));
-const DAYSS=()=>[...Array(7)].map((_,i)=>new Date(2024,0,1+i).toLocaleDateString(LOC(),{weekday:"short"}));
-const tm=iso=>new Date(iso).toLocaleTimeString(LOC(),{hour:"2-digit",minute:"2-digit"});
-const THEMES=["wald","himmel","sonne","beere","kontrast"],SW=["#12302f","#1e3a8a","#9a3412","#6b21a8","#000000"];
-const isSimple=()=>localStorage.simple!==undefined?localStorage.simple==="1":!!S.pub.simple_mode;
-
-async function api(m,u,b){
-  const r=await fetch(u,{method:m,headers:{"Content-Type":"application/json",...(TOKEN?{Authorization:"Bearer "+TOKEN}:{})},body:b?JSON.stringify(b):undefined});
-  if(!r.ok){
-    let d="";try{d=(await r.json()).detail}catch{}
-    if(r.status===401&&u!=="/api/login"&&u!=="/api/trusted-login"){TOKEN="";localStorage.token="";authScreen("login");throw 0}
-    alert(r.status===422?t("check"):EMAP[d]?t(EMAP[d]):d||r.statusText);throw 0;
-  }
-  if(r.status===204)return null;
-  const ct=r.headers.get("content-type")||"";
-  return ct.includes("json")?r.json():null;
-}
-const pill=(s,big)=>s?`<span class="inline-flex items-center gap-1 rounded-full font-bold ${big?'px-3 py-1 text-sm':'px-2 py-0.5 text-xs'}" style="background:${s.color_code}1f;color:${s.color_code};border:2px solid ${s.color_code}">${esc(s.icon)} ${esc(s.label)}</span>`:"";
-const lab=(txt,html)=>`<label class="block font-bold text-sm">${txt}<div class="font-normal">${html}</div></label>`;
-const inp=(id,v="",ph="",x="")=>`<input id="${id}" class="inp" value="${esc(v)}" placeholder="${esc(ph)}" ${x}>`;
-
-function applyTheme(th){document.documentElement.dataset.theme=th}
-function brand(){
-  applyTheme(S.pub.theme||"wald");document.title=S.pub.hort_name||"Kindle";document.documentElement.lang=L;
-  document.documentElement.classList.toggle("simple",isSimple());
-  if($("#hname")){$("#hname").textContent=S.pub.hort_name||"";const lg=$("#logo");if(lg){lg.src=S.pub.logo||"";lg.classList.toggle("hidden",!S.pub.logo)}}
-  document.querySelectorAll("[data-i]").forEach(e=>e.textContent=t(e.dataset.i));
-  document.querySelectorAll("[data-p]").forEach(e=>e.placeholder=t(e.dataset.p));
-  if($("#easyBtn"))$("#easyBtn").textContent=(isSimple()?"✓ ":"")+t("easy");
-  if($("#langBtn"))$("#langBtn").textContent=L==="de"?"EN":"DE";
-  if($("#settingsBtn"))$("#settingsBtn").classList.toggle("hidden",!S.me||S.me.role!=="manager");
-  if(S.me&&$("#who"))$("#who").textContent=S.me.name;
-}
-function toggleLang(){L=LANGS[(li()+1)%LANGS.length];localStorage.lang=L;if(!$("#auth").classList.contains("hidden"))return authScreen(S.authMode);closePanel(true);brand();render()}
-function toggleSimple(){localStorage.simple=isSimple()?"0":"1";brand();render()}
-async function logout(){try{await api("POST","/api/logout")}catch{}TOKEN="";localStorage.token="";S.me=null;authScreen("login")}
-
-const themePicker=cur=>THEMES.map((n,i)=>`<button type="button" class="btn !px-3 flex items-center gap-2 ${n===cur?'ring-4 ring-offset-1 ring-slate-500':''}" onclick="pickTheme('${n}')"><span class="inline-block h-5 w-5 rounded-full" style="background:${SW[i]}"></span>${T.themes[li()][i]}</button>`).join(" ");
-function pickTheme(n){S.theme=n;applyTheme(n);if(!$("#auth").classList.contains("hidden"))authScreen(S.authMode,true);else if($("#themeBox"))$("#themeBox").innerHTML=themePicker(n)}
-
-function authScreen(mode,keep){
-  S.authMode=mode;$("#app").classList.add("hidden");const a=$("#auth"),setup=mode==="setup";a.classList.remove("hidden");
-  const v=id=>keep&&$("#"+id)?$("#"+id).value:"";
-  const trusted=S.publicInfo?.trusted||[];
-  let trustedHtml="";
-  if(!setup&&trusted.length){
-    trustedHtml=`<div class="rounded-xl bg-emerald-50 border-2 border-emerald-200 p-3 space-y-2">
-      <div class="font-bold text-emerald-900">${t("trustedHint")}</div>
-      ${trusted.map(tr=>`<button class="btn bg-btn w-full" onclick="doTrusted('${esc(tr.hort_code)}')">${esc(tr.label||tr.hort_name)} <span class="opacity-70 text-sm">(${esc(tr.hort_code)})</span></button>`).join("")}
-    </div><div class="text-center text-sm opacity-60">— oder manuell —</div>`;
-  }
-  a.innerHTML=`<div class="card rounded-2xl p-6 w-full max-w-md space-y-3 mx-auto my-6">
-   <div class="flex items-center gap-3"><h1 class="text-2xl font-extrabold mr-auto">${esc(setup?t("setupTitle"):"Kindle")}</h1><button class="btn" onclick="toggleLang()">${L==="de"?"EN":"DE"}</button></div>
-   ${trustedHtml}
-   ${setup?lab(t("hortCode"),inp("a_code",v("a_code")||"","",'pattern="[a-zA-Z0-9_-]+"'))+lab(t("hortName"),inp("a_hort",v("a_hort")||"Kindle"))+lab(t("theme"),`<div class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>`)+`<h2 class="font-extrabold pt-2">${t("mgrAcc")}</h2>`+lab(t("uName"),inp("a_name",v("a_name"))):lab(t("hortCode"),inp("a_code",v("a_code")||localStorage.hortCode||"",t("hortCodePh")))}
-   ${lab(t("uUser"),inp("a_user",v("a_user"),"","autocomplete=username autocapitalize=none"))}
-   ${lab(t("uPw"),inp("a_pw","","",`type=password autocomplete=${setup?"new-password":"current-password"} onkeydown="if(event.key==='Enter')${setup?'doSetup()':'doLogin()'}"`))}
-   ${setup?`<label class="flex items-center gap-2 font-bold"><input id="a_demo" type="checkbox" class="h-6 w-6" ${keep&&$("#a_demo")?.checked?"checked":"checked"}> ${t("demo")}</label>`:
-     `<label class="flex items-center gap-2 font-bold text-sm"><input id="a_trust" type="checkbox" class="h-5 w-5"> ${t("trustIp")}</label>
-      <div class="text-xs opacity-60">${t("yourIp")}: ${esc(S.publicInfo?.client_ip||"?")}</div>`}
-   <button class="btn bg-btn w-full" onclick="${setup?'doSetup()':'doLogin()'}">${t(setup?"setupBtn":"login")}</button>
-   ${!setup?`<button class="btn w-full" onclick="authScreen('setup')">${t("setupTitle")}</button>`:`<button class="btn w-full" onclick="authScreen('login')">${t("login")}</button>`}
-  </div>`;
-}
-
-async function doSetup(){
-  const hort_code=$("#a_code").value.trim(),hort_name=$("#a_hort").value.trim(),name=$("#a_name").value.trim();
-  const username=$("#a_user").value.trim(),password=$("#a_pw").value;
-  if(!hort_code||!hort_name||!name||!username||password.length<6){alert(t("check"));return}
-  const res=await api("POST","/api/setup",{hort_code,hort_name,theme:S.theme,language:L,name,username,password,demo:$("#a_demo")?.checked||false});
-  TOKEN=res.token;localStorage.token=TOKEN;localStorage.hortCode=hort_code.toLowerCase();
-  S.me=res.user;S.pub=res.hort;await bootApp();
-}
-async function doLogin(){
-  const hort_code=$("#a_code").value.trim(),username=$("#a_user").value.trim(),password=$("#a_pw").value;
-  if(!hort_code||!username||!password){alert(t("check"));return}
-  const res=await api("POST","/api/login",{hort_code,username,password,trust_ip:!!$("#a_trust")?.checked});
-  TOKEN=res.token;localStorage.token=TOKEN;localStorage.hortCode=hort_code.toLowerCase();
-  S.me=res.user;S.pub=res.hort;await bootApp();
-}
-async function doTrusted(code){
-  const res=await api("POST","/api/trusted-login",{hort_code:code});
-  TOKEN=res.token;localStorage.token=TOKEN;localStorage.hortCode=code.toLowerCase();
-  S.me=res.user;S.pub=res.hort;await bootApp();
-}
-
-async function bootApp(){
-  $("#auth").classList.add("hidden");$("#app").classList.remove("hidden");
-  brand();await load();startClock();
-}
-
+const T={de:{roster:'Übersicht',meals:'Essen',manage:'Kinder',search:'Kind suchen…',all:'Alle',att:'Bald im Termin',in:'in',min:'Min.',inAppt:'im Termin',sel:'gewählt',clear:'Aufheben',selGrp:'Gruppe wählen',here:'anwesend',lunch:'Mittagessen',zvieri:'Zvieri',open:'Noch offen',onlyOpen:'Nur offene',onlyHere:'Nur Anwesende',allDone:'Alle haben gegessen 🎉',allTick:'Alle ✓',add:'Kind hinzufügen',first:'Vorname',last:'Nachname',group:'Gruppe',allergies:'Allergien',imp:'CSV importieren',impHint:'Spalten: vorname, nachname, gruppe. Weitere Spalten werden als Info gespeichert.',logout:'Abmelden',login:'Anmelden',user:'Benutzername',pw:'Passwort',setup:'Hort einrichten',hname:'Name des Horts',yname:'Dein Name',demo:'Beispieldaten laden',none:'Keine Kinder gefunden.',del:'Kind wirklich löschen?',added:'neu',skipped:'übersprungen',ok:'Gespeichert ✓',err:'Eingabe ungültig'},
+en:{roster:'Overview',meals:'Meals',manage:'Children',search:'Find child…',all:'All',att:'Appointments soon',in:'in',min:'min',inAppt:'at appointment',sel:'selected',clear:'Clear',selGrp:'Select group',here:'present',lunch:'Lunch',zvieri:'Afternoon snack',open:'Still missing',onlyOpen:'Only missing',onlyHere:'Only present',allDone:'Everyone has eaten 🎉',allTick:'All ✓',add:'Add child',first:'First name',last:'Last name',group:'Group',allergies:'Allergies',imp:'Import CSV',impHint:'Columns: first name, last name, group. Other columns are kept as info.',logout:'Log out',login:'Log in',user:'Username',pw:'Password',setup:'Set up Hort',hname:'Hort name',yname:'Your name',demo:'Load sample data',none:'No children found.',del:'Really delete this child?',added:'new',skipped:'skipped',ok:'Saved ✓',err:'Invalid input'}};
+let L='de',tok=localStorage.getItem('hm_tok'),S={},kids=[],sts=[],meals={},tab='roster',q='',grp='',stf='',sel=new Set(),meal='lunch',onlyOpen=false,onlyHere=false,col=new Set();
+const t=k=>T[L][k]||k,$=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const e=$('#toast');e.textContent=m;e.className='show';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2500)}
+async function api(p,m='GET',b){
+ const r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json',...(tok?{Authorization:'Bearer '+tok}:{})},body:b?JSON.stringify(b):undefined});
+ if(r.status===401&&p!=='login'&&p!=='logout'){logout();throw 0}
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:t('err'));
+ return j}
+async function logout(){try{await api('logout','POST')}catch{}tok=null;localStorage.removeItem('hm_tok');boot()}
 async function load(){
-  const [roster,statuses,types,logs,slots,cells]=await Promise.all([
-    api("GET","/api/roster"),api("GET","/api/statuses"),api("GET","/api/appointment-types"),
-    api("GET","/api/logs"),api("GET","/api/time-slots"),api("GET","/api/schedule"),
-  ]);
-  S.roster=roster;S.statuses=statuses;S.types=types;S.logs=logs;S.slots=slots;S.cells=cells;
-  fillGroupSelect();render();
-}
+ [kids,sts,meals]=await Promise.all([api('roster'),api('statuses'),api('meals')]);
+ kids.sort((a,b)=>(a.group_name||'').localeCompare(b.group_name||'')||a.first_name.localeCompare(b.first_name))}
+const G=k=>k.group_name||'–';
+const cf=(k,re)=>{for(const[a,b]of Object.entries(k.custom_fields||{}))if(re.test(a)&&b)return b;return ''};
+const here=k=>k.status&&!k.status.is_default&&!/abwes|absent|abgeholt|picked/i.test(k.status.label);
+const ate=(k,m)=>!!(meals[k.id]&&meals[k.id][m]);
+const short=k=>esc(k.first_name)+' '+esc(k.last_name[0])+'.';
+const vis=()=>kids.filter(k=>(!grp||G(k)===grp)&&(!q||(k.first_name+' '+k.last_name).toLowerCase().includes(q)));
+const groups=()=>[...new Set(kids.map(G))].sort();
+const byGroup=l=>l.reduce((o,k)=>((o[G(k)]=o[G(k)]||[]).push(k),o),{});
+const badges=k=>{const a=cf(k,/allerg/i),d=cf(k,/ernähr|dietary/i);return(a?`<span class="b bad">⚠ ${esc(a)}</span>`:'')+(d?`<span class="b warn">${esc(d)}</span>`:'')};
 
-function groupsList(){
-  const g=new Set();
-  (S.roster||[]).forEach(c=>{if(c.group_name)g.add(c.group_name)});
-  (S.cells||[]).forEach(c=>{if(c.group_name)g.add(c.group_name)});
-  return [...g].sort();
-}
-function fillGroupSelect(){
-  const el=$("#group");if(!el)return;
-  const cur=S.group;
-  el.innerHTML=`<option value="">${L==="de"?"Alle Gruppen":"All groups"}</option>`+groupsList().map(g=>`<option value="${esc(g)}" ${g===cur?"selected":""}>${esc(g)}</option>`).join("");
-}
+function authView(su){
+ $('#app').innerHTML=`<form class="card auth" id="af"><h2>${esc(S.hort_name)}</h2>${su?`<input name="hort_name" placeholder="${t('hname')}" required><input name="name" placeholder="${t('yname')}" required>`:''}<input name="username" placeholder="${t('user')}" required autocomplete="username"><input name="password" type="password" placeholder="${t('pw')}" required minlength="6" autocomplete="current-password">${su?`<select name="language"><option value="de">Deutsch</option><option value="en">English</option></select><label><input type="checkbox" name="demo"> ${t('demo')}</label>`:''}<button class="pri">${su?t('setup'):t('login')}</button></form>`;
+ $('#af').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);
+  try{const r=su?await api('setup','POST',{hort_name:f.get('hort_name'),logo:'',theme:'wald',language:f.get('language'),simple_mode:false,name:f.get('name'),username:f.get('username'),password:f.get('password'),demo:f.has('demo')}):await api('login','POST',{username:f.get('username'),password:f.get('password')});
+   tok=r.token;localStorage.setItem('hm_tok',tok);boot()}catch(err){toast(err.message)}}}
 
-function startClock(){
-  const tick=()=>{const el=$("#clock");if(el)el.textContent=new Date().toLocaleString(LOC(),{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})};
-  tick();setInterval(tick,30_000);
-}
+function shell(){
+ $('#app').innerHTML=`<div class="top"><header><b>${esc(S.hort_name)}</b><span class="sp"></span><button class="chip" data-logout>${t('logout')}</button></header><div id="tabs"></div><input id="q" type="search" placeholder="${t('search')}"><div id="chips"></div></div><div id="main"></div>`;
+ $('#q').oninput=e=>{q=e.target.value.trim().toLowerCase();draw()}}
 
-function render(){
-  brand();
-  const q=(S.q||"").toLowerCase();
-  let list=S.roster||[];
-  if(S.group)list=list.filter(c=>c.group_name===S.group);
-  if(q)list=list.filter(c=>(c.first_name+" "+c.last_name+" "+(c.group_name||"")).toLowerCase().includes(q));
-  if(S.sf)list=list.filter(c=>String(c.status?.id)===S.sf);
-  const sf=$("#sf");
-  if(sf)sf.innerHTML=`<option value="">${L==="de"?"Alle Status":"All statuses"}</option>`+(S.statuses||[]).map(s=>`<option value="${s.id}" ${String(s.id)===S.sf?"selected":""}>${esc(s.icon)} ${esc(s.label)}</option>`).join("");
+function draw(){
+ $('#tabs').innerHTML=['roster','meals','manage'].map(x=>`<button class="${tab==x?'on':''}" data-tab="${x}">${t(x)}</button>`).join('');
+ const inG=kids.filter(k=>!grp||G(k)===grp);
+ $('#chips').innerHTML=`<button class="chip ${grp?'':'on'}" data-grp="">${t('all')} ${kids.length}</button>`+groups().map(g=>`<button class="chip ${grp==g?'on':''}" data-grp="${esc(g)}">${esc(g)} ${kids.filter(k=>G(k)==g).length}</button>`).join('')+(tab=='roster'?sts.map(s=>`<button class="chip ${stf==s.id?'on':''}" data-st="${s.id}" style="--c:${esc(s.color_code)}">${esc(s.icon)} ${esc(s.label)} ${inG.filter(k=>k.status&&k.status.id==s.id).length}</button>`).join(''):'');
+ $('#main').innerHTML={roster:vRoster,meals:vMeals,manage:vManage}[tab]()}
 
-  const dayIdx=new Date().getDay();const wd=dayIdx===0?6:dayIdx-1;
-  const todayCells=(S.cells||[]).filter(c=>c.day_of_week===wd);
-  const lunch=todayCells.find(c=>c.kind==="lunch"&&!c.group_name)||todayCells.find(c=>c.kind==="lunch");
-  let ban="";
-  if(lunch)ban+=`<div class="card rounded-xl px-4 py-2 flex items-center gap-2"><span class="text-xl">🍽️</span><div><b>${t("todayLunch")}</b>: ${esc(lunch.title)}${lunch.room?" · "+esc(lunch.room):""}</div></div>`;
-  $("#banner").innerHTML=ban;
+const row=k=>`<div class="row"><input type="checkbox" data-sel="${k.id}" ${sel.has(k.id)?'checked':''} aria-label="${esc(k.first_name)}"><div class="nm"><b>${esc(k.first_name)} ${esc(k.last_name)}</b>${badges(k)}${k.last_note?`<div class="mu">📝 ${esc(k.last_note.note)}</div>`:''}</div><select data-set="${k.id}" style="border-color:${k.status?esc(k.status.color_code):'var(--ln)'}">${sts.map(s=>`<option value="${s.id}" ${k.status&&k.status.id==s.id?'selected':''}>${esc(s.icon)} ${esc(s.label)}</option>`).join('')}</select></div>`;
 
-  // top banner: all upcoming/away appointments across kids
-  const alertAppts=[];
-  (S.roster||[]).forEach(c=>(c.appointments||[]).forEach(a=>{
-    if(a.state==="upcoming"||a.state==="away") alertAppts.push({...a,child:`${c.first_name} ${c.last_name}`});
-  }));
-  alertAppts.sort((a,b)=>a.start_time.localeCompare(b.start_time));
-  let alertBan=alertAppts.map(a=>`<div class="card rounded-xl px-4 py-2 flex items-center gap-2 ${a.state==="away"?"b-away":"b-alert"}">
-    <span class="text-xl">${a.state==="away"?"⏳":"🔔"}</span>
-    <div class="mr-auto"><b>${esc(a.child)}</b> · ${esc(a.title)} <span class="opacity-70">${esc(a.start_time)}</span>
-    <div class="text-xs opacity-70">${a.state==="away"?t("awayNow"):`${t("upcoming")} · ${a.minutes_until} min`}</div></div>
-  </div>`).join("");
-  $("#banner").innerHTML=(ban||"")+(alertBan||"");
+function vRoster(){
+ const att=kids.flatMap(k=>k.appointments.filter(a=>a.state=='upcoming'||a.state=='away').map(a=>({k,a}))).sort((x,y)=>x.a.minutes_until-y.a.minutes_until);
+ let h='';
+ if(att.length)h+=`<div class="card"><b>🔔 ${t('att')}</b>${att.map(({k,a})=>`<div class="li"><span style="color:${esc(a.color)}">●</span> ${short(k)} – ${esc(a.title)} <span class="mu">${a.state=='away'?t('inAppt'):t('in')+' '+a.minutes_until+' '+t('min')}</span></div>`).join('')}</div>`;
+ if(sel.size)h+=`<div class="card bulk"><b>${sel.size} ${t('sel')}</b>${sts.map(s=>`<button class="chip" data-bulk="${s.id}" style="--c:${esc(s.color_code)}">${esc(s.icon)} ${esc(s.label)}</button>`).join('')}<button class="chip" data-clear>${t('clear')}</button></div>`;
+ const list=vis().filter(k=>!stf||(k.status&&k.status.id==stf));
+ if(!list.length)return h+`<p class="mu">${t('none')}</p>`;
+ return h+Object.entries(byGroup(list)).map(([g,ks])=>`<details ${col.has(g)?'':'open'} data-g="${esc(g)}"><summary><b>${esc(g)}</b><span class="mu">${ks.filter(here).length}/${ks.length} ${t('here')}</span><button class="chip" data-selgrp="${esc(g)}">${t('selGrp')}</button></summary>${ks.map(row).join('')}</details>`).join('')}
 
-  $("#grid").innerHTML=list.map(c=>{
-    const st=c.status;
-    const ap=c.appointments||[];
-    const hot=ap.filter(a=>a.state==="upcoming"||a.state==="away");
-    const later=ap.filter(a=>a.state==="later");
-    return `<div class="card rounded-2xl p-4 ${hot.some(a=>a.state==="away")?"b-away":hot.length?"b-alert":""}">
-      <div class="flex items-start gap-2 mb-2">
-        <div class="mr-auto"><div class="font-extrabold text-lg">${esc(c.first_name)} ${esc(c.last_name)}</div>
-        <div class="text-sm opacity-70">${esc(c.group_name||"—")}</div></div>
-        ${pill(st,true)}
-      </div>
-      <div class="flex flex-wrap gap-1.5 mb-2">${(S.statuses||[]).map(s=>`
-        <button class="btn !min-h-[40px] !px-3 text-sm inline-flex items-center gap-1.5"
-          style="border:2px solid ${s.color_code};background:${s.id===st?.id?s.color_code+'22':'#fff'};color:${s.color_code}"
-          onclick="setStatus(${c.id},${s.id})">${esc(s.icon)} <span>${esc(s.label)}</span></button>`).join("")}</div>
-      ${hot.concat(later).map(a=>{
-        const tag=a.state==="away"?t("awayNow"):a.state==="upcoming"?t("upcoming"):a.state==="later"?t("laterToday"):t("done");
-        return `<div class="text-sm rounded-lg px-2 py-1.5 mb-1" style="background:${a.color}18;border-left:4px solid ${a.color}">
-          <b>${esc(a.title)}</b> · ${esc(a.start_time)}
-          <span class="opacity-70"> · ${tag}${a.minutes_until>0&&a.state!=="done"?` (${a.minutes_until} min)`:""}</span>
-          ${a.category?`<span class="opacity-60"> · ${esc(a.category)}</span>`:""}
-        </div>`;
-      }).join("")}
-      ${c.last_note?`<div class="text-xs opacity-70 mt-1">📝 ${esc(c.last_note.note)}</div>`:""}
-      <div class="flex flex-wrap gap-2 mt-2">
-        <button class="btn !min-h-[36px] text-sm" onclick="openChild(${c.id})">✎ ${t("editChild")}</button>
-        <button class="btn !min-h-[36px] text-sm bg-alert" onclick="openAppt(${c.id})">${t("newAppt")}</button>
-        <button class="btn !min-h-[36px] text-sm" onclick="quickNote(${c.id})">📝</button>
-      </div>
-    </div>`;
-  }).join("")||`<p class="opacity-60 col-span-full">${L==="de"?"Keine Kinder.":"No children."}</p>`;
+function vMeals(){
+ const pool=vis().filter(k=>!onlyHere||here(k)),all=kids.filter(k=>!onlyHere||here(k));
+ const missing=all.filter(k=>!ate(k,meal)),done=all.length-missing.length;
+ let h=`<div class="mealsw">${['lunch','zvieri'].map(m=>`<button class="${meal==m?'on':''}" data-meal="${m}">${m=='lunch'?'🍝':'🍎'} ${t(m)}<br><b>${all.filter(k=>ate(k,m)).length}/${all.length}</b></button>`).join('')}</div>`;
+ h+=`<div class="bar"><i style="width:${all.length?done/all.length*100:0}%"></i></div>`;
+ h+=`<div class="tools"><label><input type="checkbox" data-oh ${onlyHere?'checked':''}> ${t('onlyHere')}</label><label><input type="checkbox" data-oo ${onlyOpen?'checked':''}> ${t('onlyOpen')}</label></div>`;
+ h+=missing.length?`<div class="card"><b>${t('open')} (${missing.length})</b><div class="mu">${missing.length<=15?missing.map(short).join(', '):''}</div></div>`:`<div class="card ok">${t('allDone')}</div>`;
+ const list=pool.filter(k=>!onlyOpen||!ate(k,meal));
+ return h+Object.entries(byGroup(list)).map(([g,ks])=>`<div class="gh"><b>${esc(g)}</b><span class="mu">${ks.filter(k=>ate(k,meal)).length}/${ks.length}</span><button class="chip" data-mgrp="${esc(g)}">${t('allTick')}</button></div><div class="grid">${ks.map(k=>`<button class="tile ${ate(k,meal)?'ate':''} ${here(k)?'':'away'}" data-tog="${k.id}"><span class="ck">${ate(k,meal)?'✓':''}</span><b>${esc(k.first_name)}</b> ${esc(k.last_name)}<br>${badges(k)}</button>`).join('')}</div>`).join('')}
 
-  $("#logs").innerHTML=(S.logs||[]).slice(0,40).map(l=>`<div class="border-b border-slate-100 pb-1">
-    <b>${esc(l.child_name)}</b> ${l.status?pill(l.status):""}
-    <div class="text-xs opacity-60">${tm(l.timestamp)}</div>
-    ${l.note?`<div>${esc(l.note)}</div>`:""}
-  </div>`).join("")||`<p class="opacity-50">—</p>`;
-}
+function vManage(){
+ return `<div class="card"><b>${t('add')}</b><div class="form"><input id="nf" placeholder="${t('first')}"><input id="nl" placeholder="${t('last')}"><input id="ng" list="gl" placeholder="${t('group')}"><datalist id="gl">${groups().map(g=>`<option value="${esc(g)}">`).join('')}</datalist><input id="na" placeholder="${t('allergies')}"><button class="pri" data-add>${t('add')}</button></div></div>
+ <div class="card"><b>${t('imp')}</b><div class="mu">${t('impHint')}</div><input type="file" id="cf" accept=".csv,.txt"><textarea id="ct" rows="4" placeholder="vorname;nachname;gruppe;Allergien"></textarea><button class="pri" data-imp>${t('imp')}</button></div>
+ <div class="card">${vis().map(k=>`<div class="row"><div class="nm"><b>${esc(k.first_name)} ${esc(k.last_name)}</b> <span class="mu">${esc(k.group_name)}</span>${badges(k)}</div><button class="chip" data-del="${k.id}" aria-label="delete">🗑</button></div>`).join('')||`<span class="mu">${t('none')}</span>`}</div>`}
 
-async function setStatus(cid,sid){await api("POST","/api/attendance",{child_id:cid,status_id:sid});await load()}
-async function quickNote(cid){
-  const note=prompt(t("notesPh"));if(note==null)return;
-  if(!note.trim())return;
-  await api("POST","/api/attendance",{child_id:cid,note:note.trim()});await load();
-}
+async function setMeal(ids,m,on){
+ ids.forEach(i=>{meals[i]=meals[i]||{};on?meals[i][m]=true:delete meals[i][m]});draw();
+ try{await api('meals','POST',{child_ids:ids,meal:m,ate:on})}catch(e){toast(e.message);await load();draw()}}
 
-function showPanel(html){
-  const p=$("#panel");p.classList.remove("hidden");
-  p.innerHTML=`<div class="panel-card" onclick="event.stopPropagation()">${html}</div>`;
-}
-function closePanel(skip){$("#panel").classList.add("hidden");$("#panel").innerHTML="";if(!skip)load().catch(()=>{})}
-const head=title=>`<div class="flex items-center gap-2 mb-3"><h2 class="text-xl font-extrabold mr-auto">${title}</h2><button class="btn" onclick="closePanel()">✕</button></div>`;
+document.addEventListener('click',async e=>{
+ const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ try{
+  if(d.tab){tab=d.tab;draw()}
+  else if('grp' in d){grp=d.grp;draw()}
+  else if(d.st){stf=stf==d.st?'':+d.st;draw()}
+  else if(d.bulk){await api('attendance/bulk','POST',{child_ids:[...sel],status_id:+d.bulk});sel.clear();await load();draw();toast(t('ok'))}
+  else if('clear' in d){sel.clear();draw()}
+  else if('selgrp' in d){e.preventDefault();const ids=vis().filter(k=>G(k)==d.selgrp).map(k=>k.id),all=ids.every(i=>sel.has(i));ids.forEach(i=>all?sel.delete(i):sel.add(i));draw()}
+  else if(d.meal){meal=d.meal;draw()}
+  else if(d.tog){const id=+d.tog;setMeal([id],meal,!(meals[id]&&meals[id][meal]))}
+  else if('mgrp' in d){const ks=vis().filter(k=>G(k)==d.mgrp&&(!onlyHere||here(k))),every=ks.every(k=>ate(k,meal));setMeal(ks.filter(k=>every||!ate(k,meal)).map(k=>k.id),meal,!every)}
+  else if('add' in d){const f=id=>$('#'+id).value.trim();if(!f('nf')||!f('nl'))return toast(t('err'));await api('children','POST',{first_name:f('nf'),last_name:f('nl'),group_name:f('ng'),custom_fields:f('na')?{[L=='de'?'Allergien':'Allergies']:f('na')}:{}});await load();draw();toast(t('ok'))}
+  else if('imp' in d){const r=await api('children/import','POST',{csv_text:$('#ct').value});await load();draw();toast(`${r.added} ${t('added')}, ${r.skipped} ${t('skipped')}`)}
+  else if(d.del){if(confirm(t('del'))){await api('children/'+d.del,'DELETE');sel.delete(+d.del);await load();draw()}}
+  else if('logout' in d)logout();
+ }catch(err){toast(err&&err.message||'')}});
 
-async function openChild(id){
-  const c=id?S.roster.find(x=>x.id===id):null;
-  let apptBlock="";
-  if(id){
-    const all=await api("GET","/api/appointments").catch(()=>[]);
-    const mine=(all||[]).filter(a=>a.child_id===id);
-    const days=DAYS();
-    apptBlock=`<h3 class="font-extrabold mt-5 mb-2">${t("appt")}</h3>
-      <div class="space-y-2 mb-3">${mine.length?mine.map(a=>{
-        const rec=a.recurrence||(a.is_recurring?"weekly":"once");
-        const when=rec==="once"?(a.date||"?"):(days[a.day_of_week??0]||"?")+(rec==="biweekly"?" · "+t("biweekly"):" · "+t("weekly"));
-        return `<div class="card rounded-lg px-3 py-2 flex items-start gap-2">
-          <div class="mr-auto"><b>${esc(a.title)}</b>${a.category?` · ${esc(a.category)}`:""}
-            <div class="text-sm opacity-70">${esc(when)} · ${esc(a.start_time)} · ${t("remind")}: ${a.alert_lead_minutes||15} min</div>
-          </div>
-          <button class="btn !min-h-[36px] text-sm" onclick="openAppt(${id},${a.id})">✎</button>
-          <button class="btn bg-red-100 text-red-800 !min-h-[36px]" onclick="delAppt(${a.id},${id})">✕</button>
-        </div>`;
-      }).join(""):`<p class="opacity-50 text-sm">${t("noAppts")}</p>`}</div>
-      <button class="btn bg-alert mb-4" onclick="openAppt(${id})">${t("newAppt")}</button>`;
-  }
-  showPanel(head(c?`${esc(c.first_name)} ${esc(c.last_name)}`:t("addChild"))+`
-  <div class="grid sm:grid-cols-2 gap-3">
-    ${lab(L==="de"?"Vorname":"First name",inp("c_fn",c?.first_name||""))}
-    ${lab(L==="de"?"Nachname":"Last name",inp("c_ln",c?.last_name||""))}
-    ${lab(L==="de"?"Gruppe":"Group",inp("c_g",c?.group_name||""))}
-  </div>
-  <div class="mt-3"><button class="btn bg-btn" onclick="saveChild(${id||"null"})">${t("save")}</button>
-  ${id?`<button class="btn bg-red-100 text-red-800 ml-2" onclick="delChild(${id})">${t("del")}</button>`:""}</div>
-  ${apptBlock}`);
-}
+document.addEventListener('change',async e=>{
+ const el=e.target,d=el.dataset;
+ try{
+  if(d.sel){el.checked?sel.add(+d.sel):sel.delete(+d.sel);draw()}
+  else if(d.set){await api('attendance','POST',{child_id:+d.set,status_id:+el.value});await load();draw()}
+  else if('oh' in d){onlyHere=el.checked;draw()}
+  else if('oo' in d){onlyOpen=el.checked;draw()}
+  else if(el.id=='cf'){const f=el.files[0];if(f)$('#ct').value=await f.text()}
+ }catch(err){toast(err&&err.message||'')}});
 
-async function openAppt(childId, apptId){
-  const all=apptId?await api("GET","/api/appointments").catch(()=>[]):[];
-  const a=apptId?(all||[]).find(x=>x.id===apptId):null;
-  const days=DAYS();
-  const rec=a?(a.recurrence||(a.is_recurring?"weekly":"once")):"weekly";
-  const typeOpts=`<option value="">—</option>`+(S.types||[]).map(t=>`<option value="${esc(t.name)}" ${a&&a.category===t.name?"selected":""}>${esc(t.name)}</option>`).join("");
-  const dayOpts=days.map((d,i)=>`<option value="${i}" ${(a?.day_of_week??new Date().getDay()===0?6:new Date().getDay()-1)===i?"selected":""}>${esc(d)}</option>`).join("");
-  const todayStr=new Date().toISOString().slice(0,10);
-  showPanel(head(a?t("appt"):t("newAppt"))+`
-  <div class="grid sm:grid-cols-2 gap-3">
-    ${lab(t("apptTitle"),inp("ap_title",a?.title||""))}
-    ${lab(t("apptType"),`<select id="ap_cat" class="inp">${typeOpts}</select>`)}
-    ${lab(t("recurrence"),`<select id="ap_rec" class="inp" onchange="toggleRecUI()">
-      <option value="weekly" ${rec==="weekly"?"selected":""}>${t("weekly")}</option>
-      <option value="biweekly" ${rec==="biweekly"?"selected":""}>${t("biweekly")}</option>
-      <option value="once" ${rec==="once"?"selected":""}>${t("once")}</option>
-    </select>`)}
-    <div id="ap_day_wrap">${lab(t("weekday"),`<select id="ap_day" class="inp">${dayOpts}</select>`)}</div>
-    <div id="ap_date_wrap" class="${rec==="once"||rec==="biweekly"?"":"hidden"}">${lab(t("date")+(rec==="biweekly"?" (1. Termin)":""),`<input id="ap_date" type="date" class="inp" value="${esc(a?.date||todayStr)}">`)}</div>
-    ${lab(t("timeFrom"),`<input id="ap_time" type="time" class="inp" value="${esc(a?.start_time||"14:00")}">`)}
-    ${lab(t("duration"),inp("ap_dur",String(a?.duration_minutes??45),"","type=number min=5 max=600"))}
-    ${lab(t("remind"),inp("ap_lead",String(a?.alert_lead_minutes??15),"","type=number min=0 max=480"))}
-  </div>
-  <p class="text-xs opacity-60 mt-1 mb-3">${t("remindHelp")}</p>
-  <div class="flex flex-wrap gap-2">
-    <button class="btn bg-btn" onclick="saveAppt(${childId},${apptId||"null"})">${t("save")}</button>
-    ${apptId?`<button class="btn bg-red-100 text-red-800" onclick="delAppt(${apptId},${childId})">${t("del")}</button>`:""}
-    <button class="btn" onclick="openChild(${childId})">${L==="de"?"Zurück":"Back"}</button>
-  </div>`);
-  toggleRecUI();
-}
-function toggleRecUI(){
-  const rec=$("#ap_rec")?.value||"weekly";
-  const dayW=$("#ap_day_wrap"), dateW=$("#ap_date_wrap");
-  if(dayW) dayW.classList.toggle("hidden", rec==="once");
-  if(dateW){
-    dateW.classList.toggle("hidden", rec==="weekly");
-    const lab=dateW.querySelector("label");
-    if(lab) lab.childNodes[0].textContent=t("date")+(rec==="biweekly"?" (1. Termin / first)":"");
-  }
-}
-async function saveAppt(childId, apptId){
-  const title=$("#ap_title").value.trim();
-  const recurrence=$("#ap_rec").value;
-  const start_time=$("#ap_time").value;
-  if(!title||!start_time){alert(t("check"));return}
-  const body={
-    child_id:childId, title, category:$("#ap_cat").value,
-    recurrence, start_time,
-    duration_minutes:+($("#ap_dur").value||45),
-    alert_lead_minutes:+($("#ap_lead").value||15),
-    day_of_week:recurrence==="once"?null:+$("#ap_day").value,
-    date:(recurrence==="once"||recurrence==="biweekly")?($("#ap_date").value||null):null,
-    is_recurring:recurrence!=="once",
-  };
-  if(recurrence==="once"&&!body.date){alert(t("check"));return}
-  if(apptId) await api("PUT","/api/appointments/"+apptId,body);
-  else await api("POST","/api/appointments",body);
-  await load(); openChild(childId);
-}
-async function delAppt(id, childId){
-  if(!confirm(t("confDel")))return;
-  await api("DELETE","/api/appointments/"+id);
-  await load(); if(childId) openChild(childId); else closePanel();
-}
-async function saveChild(id){
-  const body={first_name:$("#c_fn").value.trim(),last_name:$("#c_ln").value.trim(),group_name:$("#c_g").value.trim(),custom_fields:{}};
-  if(!body.first_name||!body.last_name){alert(t("check"));return}
-  if(id)await api("PUT","/api/children/"+id,body);else await api("POST","/api/children",body);
-  closePanel();
-}
-async function delChild(id){if(!confirm(t("confDel")))return;await api("DELETE","/api/children/"+id);closePanel()}
+document.addEventListener('toggle',e=>{const g=e.target.dataset&&e.target.dataset.g;if(g!==undefined)e.target.open?col.delete(g):col.add(g)},true);
 
-let apptWeekOffset=0;
-async function openApptPlan(offset){
-  if(typeof offset==="number") apptWeekOffset=offset;
-  const week=await api("GET","/api/appointments/week?offset="+apptWeekOffset);
-  const days=DAYS();
-  const mon=new Date(week.monday+"T12:00:00");
-  const rangeLabel=mon.toLocaleDateString(LOC(),{day:"2-digit",month:"2-digit"})+" – "+
-    new Date(mon.getTime()+6*864e5).toLocaleDateString(LOC(),{day:"2-digit",month:"2-digit",year:"numeric"});
-  let body=`<div class="flex flex-wrap gap-2 mb-3">
-    <button class="btn" onclick="openApptPlan(${apptWeekOffset-1})">${t("prevWeek")}</button>
-    <button class="btn" onclick="openApptPlan(0)">${t("thisWeek")}</button>
-    <button class="btn" onclick="openApptPlan(${apptWeekOffset+1})">${t("nextWeek")}</button>
-    <span class="font-bold self-center ml-2">${esc(rangeLabel)}</span>
-  </div>`;
-  body+=`<div class="sched-wrap"><table class="sched"><thead><tr>`;
-  for(const d of week.days){
-    const label=days[d.weekday]||d.date;
-    const isToday=d.date===new Date().toISOString().slice(0,10);
-    body+=`<th class="${isToday?"bg-amber-100":""}">${esc(label)}<div class="text-xs font-normal opacity-60">${esc(d.date.slice(5))}</div></th>`;
-  }
-  body+=`</tr></thead><tbody><tr>`;
-  for(const d of week.days){
-    const items=d.items||[];
-    body+=`<td class="cell" style="min-width:120px;vertical-align:top">`;
-    if(!items.length) body+=`<span class="opacity-30">—</span>`;
-    else items.forEach(a=>{
-      body+=`<div class="rounded-lg px-2 py-1.5 mb-1.5 text-sm" style="background:${a.color||"#64748b"}22;border-left:4px solid ${a.color||"#64748b"}">
-        <div class="font-extrabold">${esc(a.start_time)} ${esc(a.title)}</div>
-        <div class="cell-meta">${esc(a.child_name)}${a.group_name?" · "+esc(a.group_name):""}</div>
-        <div class="cell-meta opacity-60">${esc(a.recurrence||(a.is_recurring?"weekly":"once"))}${a.alert_lead_minutes?` · 🔔 ${a.alert_lead_minutes}m`:""}</div>
-        <button class="btn !min-h-[28px] !px-2 text-xs mt-1" onclick="openAppt(${a.child_id},${a.id})">✎</button>
-      </div>`;
-    });
-    body+=`</td>`;
-  }
-  body+=`</tr></tbody></table></div>`;
-  showPanel(head(t("apptPlanTitle"))+`<p class="text-sm opacity-70 mb-3">${t("apptPlanHelp")}</p>`+body);
-}
+async function boot(){
+ S=await api('public');L=S.language||'de';document.documentElement.lang=L;document.title=S.hort_name;
+ if(!S.configured)return authView(true);
+ if(!tok)return authView(false);
+ try{await load()}catch{return}
+ shell();draw()}
 
-async function openPlan(){
-  S.planGroup=S.planGroup??"";
-  const canEdit=S.me&&S.me.role==="manager";
-  const groups=groupsList();
-  const groupOpts=`<option value="">${t("shared")}</option>`+groups.map(g=>`<option value="${esc(g)}" ${g===S.planGroup?"selected":""}>${esc(g)}</option>`).join("");
-  const shared=(S.cells||[]).filter(c=>!c.group_name);
-  const own=(S.cells||[]).filter(c=>c.group_name===(S.planGroup||""));
-  const key=(day,slot)=>day+"|"+slot;
-  const map={};
-  shared.forEach(c=>{map[key(c.day_of_week,c.slot_id)]={...c,_shared:true}});
-  if(S.planGroup) own.forEach(c=>{map[key(c.day_of_week,c.slot_id)]={...c,_shared:false}});
-
-  let table=`<div class="sched-wrap"><table class="sched"><thead><tr><th class="time-col">${L==="de"?"Zeit":"Time"}</th>`;
-  for(let d=0;d<5;d++) table+=`<th>${esc(DAYSS()[d])}</th>`;
-  table+=`</tr></thead><tbody>`;
-  (S.slots||[]).forEach(slot=>{
-    table+=`<tr><td class="time-col">${esc(slot.start_time)}–${esc(slot.end_time)}${slot.label?`<div class="text-xs font-normal opacity-60">${esc(slot.label)}</div>`:""}</td>`;
-    for(let d=0;d<5;d++){
-      const cell=map[key(d,slot.id)];
-      const isLunch=cell?.kind==="lunch";
-      const sharedHint=cell?._shared&&S.planGroup;
-      const cls="cell"+(isLunch?" lunch":"")+(sharedHint?" shared-hint":"");
-      const content=cell?`<div class="cell-title">${esc(cell.title||"—")}</div>
-        <div class="cell-meta">${[cell.room,cell.teacher].filter(Boolean).map(esc).join(" · ")}</div>
-        ${sharedHint?`<div class="cell-meta text-amber-700">↗ ${t("shared")}</div>`:""}`:`<span class="opacity-30">+</span>`;
-      table+=`<td class="${cls}" ${canEdit?`onclick="editCell(${d},${slot.id})"`:""}>${content}</td>`;
-    }
-    table+=`</tr>`;
-  });
-  table+=`</tbody></table></div>`;
-  if(!(S.slots||[]).length) table=`<p class="opacity-70 mb-3">${t("noPlan")}</p>`;
-  const tools=canEdit?`<div class="flex flex-wrap gap-2 mt-3"><button class="btn" onclick="openSlotsEditor()">${t("editSlots")}</button></div>`:"";
-  showPanel(head(t("planTitle"))+`
-  <p class="text-sm opacity-70 mb-3">${t("planHelp")}</p>
-  <div class="flex flex-wrap items-center gap-2 mb-3">
-    <label class="font-bold text-sm">${t("groupPlan")}</label>
-    <select id="plan_group" class="inp !w-56" onchange="S.planGroup=this.value;openPlan()">${groupOpts}</select>
-  </div>
-  ${table}${tools}`);
-}
-
-function cellAt(day,slotId,group){
-  return (S.cells||[]).find(c=>c.day_of_week===day&&c.slot_id===slotId&&(c.group_name||"")===(group||""));
-}
-
-function editCell(day,slotId){
-  const group=S.planGroup||"";
-  const cell=cellAt(day,slotId,group)||{};
-  const slot=(S.slots||[]).find(s=>s.id===slotId);
-  const days=DAYS();
-  showPanel(head(t("cellEdit"))+`
-  <div class="text-sm opacity-70 mb-2">${esc(days[day])} · ${esc(slot?slot.start_time+"–"+slot.end_time:"")} · ${esc(group||t("shared"))}</div>
-  <div class="grid sm:grid-cols-2 gap-3">
-    ${lab(t("title"),inp("e_title",cell.title||""))}
-    ${lab(t("kind"),`<select id="e_kind" class="inp"><option value="program" ${cell.kind!=="lunch"?"selected":""}>${t("program")}</option><option value="lunch" ${cell.kind==="lunch"?"selected":""}>${t("lunch")}</option></select>`)}
-    ${lab(t("room"),inp("e_room",cell.room||""))}
-    ${lab(t("teacher"),inp("e_teacher",cell.teacher||""))}
-    ${lab(t("notes"),inp("e_notes",cell.notes||""))}
-  </div>
-  <div class="flex flex-wrap gap-2 mt-4">
-    <button class="btn bg-btn" onclick="saveCell(${day},${slotId})">${t("save")}</button>
-    <button class="btn bg-red-100 text-red-800" onclick="clearCell(${day},${slotId})">${t("clearCell")}</button>
-    <button class="btn" onclick="openPlan()">${L==="de"?"Zurück":"Back"}</button>
-  </div>`);
-}
-
-async function saveCell(day,slotId){
-  await api("PUT","/api/schedule/cell",{
-    group_name:S.planGroup||"", day_of_week:day, slot_id:slotId,
-    title:$("#e_title").value.trim(), room:$("#e_room").value.trim(),
-    teacher:$("#e_teacher").value.trim(), notes:$("#e_notes").value.trim(), kind:$("#e_kind").value,
-  });
-  S.cells=await api("GET","/api/schedule"); openPlan();
-}
-async function clearCell(day,slotId){
-  await api("PUT","/api/schedule/cell",{
-    group_name:S.planGroup||"", day_of_week:day, slot_id:slotId,
-    title:"", room:"", teacher:"", notes:"", kind:"program",
-  });
-  S.cells=await api("GET","/api/schedule"); openPlan();
-}
-
-function openSlotsEditor(){
-  const rows=(S.slots||[]).map(s=>`
-    <div class="flex flex-wrap gap-2 items-end border-b border-slate-100 pb-2 mb-2" data-sid="${s.id}">
-      <div class="w-24">${lab("Start",`<input type="time" class="inp" data-f="start" value="${esc(s.start_time)}">`)}</div>
-      <div class="w-24">${lab("End",`<input type="time" class="inp" data-f="end" value="${esc(s.end_time)}">`)}</div>
-      <div class="flex-1 min-w-[8rem]">${lab("Label",`<input class="inp" data-f="label" value="${esc(s.label||"")}">`)}</div>
-      <button class="btn bg-red-100 text-red-800" onclick="delSlot(${s.id})">✕</button>
-    </div>`).join("")||`<p class="opacity-50 mb-2">—</p>`;
-  showPanel(head(t("slotsTitle"))+rows+`
-  <div class="rounded-xl border-2 border-dashed border-slate-300 p-3 mt-3 space-y-2">
-    <div class="font-bold">${t("addSlot")}</div>
-    <div class="flex flex-wrap gap-2">
-      <input type="time" id="ns_start" class="inp !w-28" value="08:00">
-      <input type="time" id="ns_end" class="inp !w-28" value="08:45">
-      <input id="ns_label" class="inp !w-40" placeholder="Label">
-      <button class="btn bg-btn" onclick="addSlot()">${t("addSlot")}</button>
-    </div>
-  </div>
-  <div class="mt-3 flex gap-2">
-    <button class="btn bg-btn" onclick="saveSlots()">${t("save")}</button>
-    <button class="btn" onclick="openPlan()">${L==="de"?"Zurück":"Back"}</button>
-  </div>`);
-}
-async function addSlot(){
-  const start=$("#ns_start").value,end=$("#ns_end").value;
-  if(!start||!end){alert(t("check"));return}
-  await api("POST","/api/time-slots",{start_time:start,end_time:end,label:$("#ns_label").value.trim(),sort_order:(S.slots||[]).length});
-  S.slots=await api("GET","/api/time-slots"); openSlotsEditor();
-}
-async function delSlot(id){
-  if(!confirm(t("confDel")))return;
-  await api("DELETE","/api/time-slots/"+id);
-  S.slots=await api("GET","/api/time-slots"); S.cells=await api("GET","/api/schedule"); openSlotsEditor();
-}
-async function saveSlots(){
-  for(const row of document.querySelectorAll("[data-sid]")){
-    await api("PUT","/api/time-slots/"+row.dataset.sid,{
-      start_time:row.querySelector("[data-f=start]").value,
-      end_time:row.querySelector("[data-f=end]").value,
-      label:row.querySelector("[data-f=label]").value.trim(), sort_order:0,
-    });
-  }
-  S.slots=await api("GET","/api/time-slots"); openPlan();
-}
-
-async function openSettings(){
-  const users=await api("GET","/api/users");
-  const trusted=await api("GET","/api/trusted-ips").catch(()=>[]);
-  const health=await api("GET","/api/health").catch(()=>({db:"?",persistent:false}));
-  S.theme=S.pub.theme; S.logo=S.pub.logo;
-  const dbOk=!!health.persistent;
-  showPanel(head(t("settings"))+`
-  <h3 class="font-extrabold mb-2">${t("brand")}</h3>
-  <div class="space-y-3 mb-6">
-    ${lab(t("hortName"),inp("s_name",S.pub.hort_name))}
-    <div class="font-bold text-sm">${t("logo")}</div>
-    ${inp("s_logo",S.pub.logo||"")}
-    <div class="font-bold text-sm">${t("theme")}</div>
-    <div id="themeBox" class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>
-    <button class="btn bg-btn" onclick="saveSettings()">${t("save")}</button>
-  </div>
-  <h3 class="font-extrabold mb-2">${t("dbHint")}</h3>
-  <div class="card rounded-xl px-3 py-2 mb-4 text-sm ${dbOk?"bg-emerald-50":"bg-amber-50"}">
-    <b>${esc(health.db||"?")}</b> · ${dbOk?(L==="de"?"persistent (überlebt Deploy)":"persistent (survives deploy)"):(L==="de"?"⚠️ SQLite auf Render wird bei jedem Deploy gelöscht – bitte Postgres verbinden!":"⚠️ SQLite on Render is wiped on deploy – connect Postgres!")}
-  </div>
-  <h3 class="font-extrabold mb-2">${t("backup")}</h3>
-  <div class="flex flex-wrap gap-2 mb-6">
-    <button class="btn bg-btn" onclick="doExport()">${t("exportData")}</button>
-    <label class="btn cursor-pointer">${t("importData")}<input type="file" accept="application/json,.json" class="hidden" onchange="doImport(event)"></label>
-  </div>
-  <h3 class="font-extrabold mb-2">${t("trustedIps")}</h3>
-  <p class="text-xs opacity-60 mb-2">${t("yourIp")}: ${esc((S.publicInfo&&S.publicInfo.client_ip)||"?")}</p>
-  <div class="space-y-2 mb-6">${(trusted||[]).length?(trusted||[]).map(e=>`
-    <div class="flex items-center gap-2 card rounded-lg px-3 py-2">
-      <div class="mr-auto"><b>${esc(e.ip)}</b><div class="text-sm opacity-70">${esc(e.label||"")}</div></div>
-      <button class="btn bg-red-100 text-red-800 !min-h-[36px]" onclick="untrust('${esc(e.ip)}')">${t("removeTrust")}</button>
-    </div>`).join(""):`<p class="opacity-50">${t("noTrusted")}</p>`}</div>
-  <h3 class="font-extrabold mb-2">${t("users")}</h3>
-  <div class="space-y-2 mb-4">${users.map(u=>`
-    <div class="flex flex-wrap gap-2 items-center card rounded-lg px-3 py-2">
-      <span class="font-bold mr-auto">${esc(u.name)} <span class="opacity-60 text-sm">@${esc(u.username)}</span> · ${u.role==="manager"?t("manager"):t("staff")}</span>
-    </div>`).join("")}</div>
-  <div class="rounded-xl border-2 border-dashed p-3 space-y-2">
-    <div class="font-bold">${t("newUser")}</div>
-    ${inp("nu_name","","Name")}
-    ${inp("nu_user","","Username")}
-    ${inp("nu_pw","","Password",'type=password')}
-    <select id="nu_role" class="inp"><option value="staff">${t("staff")}</option><option value="manager">${t("manager")}</option></select>
-    <button class="btn bg-btn" onclick="addUser()">${t("newUser")}</button>
-  </div>`);
-}
-async function saveSettings(){
-  const body={hort_name:$("#s_name").value.trim(),logo:$("#s_logo").value.trim(),theme:S.theme,language:L,simple_mode:isSimple()};
-  if(!body.hort_name){alert(t("check"));return}
-  S.pub=await api("PUT","/api/settings",body); brand(); closePanel();
-}
-async function doExport(){
-  const data=await api("GET","/api/export");
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=`hort-backup-${(S.pub.code||S.pub.hort_name||"hort").replace(/\s+/g,"_")}-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-}
-async function doImport(ev){
-  const file=ev.target.files&&ev.target.files[0];
-  if(!file)return;
-  if(!confirm(t("importWarn"))){ev.target.value="";return}
-  try{
-    const text=await file.text();
-    const body=JSON.parse(text);
-    await api("POST","/api/import",body);
-    alert(L==="de"?"Import ok – Seite neu laden.":"Import ok – reload.");
-    location.reload();
-  }catch(e){alert((e&&e.message)||t("check"))}
-  ev.target.value="";
-}
-async function addUser(){
-  const name=$("#nu_name").value.trim(),username=$("#nu_user").value.trim(),password=$("#nu_pw").value,role=$("#nu_role").value;
-  if(!name||!username||password.length<6){alert(t("check"));return}
-  await api("POST","/api/users",{name,username,password,role}); openSettings();
-}
-async function untrust(ip){
-  if(!confirm(t("confDel")))return;
-  await api("DELETE","/api/trusted-ips?ip="+encodeURIComponent(ip)); openSettings();
-}
-
-async function init(){
-  try{ S.publicInfo=await api("GET","/api/public"); }catch{ S.publicInfo={has_horts:false,trusted:[]}; }
-  if(TOKEN){
-    try{
-      const me=await api("GET","/api/me");
-      S.me=me.user; S.pub=me.hort; await bootApp(); return;
-    }catch{ TOKEN=""; localStorage.token=""; }
-  }
-  authScreen(S.publicInfo.has_horts?"login":"setup");
-}
-init();
-</script>
-</body>
-</html>
+setInterval(async()=>{ // keep several staff devices in sync
+ if(!tok||document.hidden||!$('#main')||document.activeElement.tagName=='SELECT')return;
+ try{await load();if(tab!='manage')draw()}catch{}},15000);
+boot();
+</script></body></html>
