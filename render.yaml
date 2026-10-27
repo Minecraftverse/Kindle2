@@ -7,4 +7,14 @@ services:
     plan: free
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.8
+        value: "3.12.8"
+      # Link a Render Postgres database and set DATABASE_URL from it
+      # (Dashboard → your web service → Environment → Add from Database)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kindle-db
+          property: connectionString
+
+databases:
+  - name: kindle-db
+    plan: free
