@@ -51,6 +51,7 @@ button,input,select{touch-action:manipulation}
   <select id="sf" class="inp !w-44 adv" onchange="S.sf=this.value;render()"></select>
   <button class="btn" onclick="openChild(null)" data-i="addChild"></button>
   <button class="btn" onclick="openPlan()" data-i="plan"></button>
+  <button class="btn" onclick="openApptPlan()" data-i="apptPlan"></button>
   <button id="settingsBtn" class="btn bg-alert" onclick="openSettings()" data-i="settings"></button>
   <button id="easyBtn" class="btn" onclick="toggleSimple()"></button>
   <button class="btn" onclick="toggleLang()" id="langBtn"></button>
@@ -69,7 +70,7 @@ button,input,select{touch-action:manipulation}
 const LANGS=["de","en"];
 const LOCS=["de-CH","en-GB"];
 const T={
-search:["Suchen…","Search…"],addChild:["+ Kind","+ Child"],plan:["Stundenplan","Schedule"],settings:["Einstellungen","Settings"],
+search:["Suchen…","Search…"],addChild:["+ Kind","+ Child"],plan:["Stundenplan","Schedule"],apptPlan:["Terminplan","Appointments"],settings:["Einstellungen","Settings"],
 easy:["Einfach","Easy"],logTitle:["Tagesprotokoll","Daily log"],setupTitle:["Hort einrichten","Set up Hort"],
 setupBtn:["Einrichten","Set up"],login:["Anmelden","Sign in"],hortName:["Hort-Name","Hort name"],
 hortCode:["Hort-Code","Hort code"],hortCodePh:["z. B. sonne","e.g. sonne"],
@@ -119,6 +120,16 @@ awayNow:["Jetzt unterwegs","Away now"],
 laterToday:["Später heute","Later today"],
 done:["Erledigt","Done"],
 editChild:["Kind bearbeiten","Edit child"],
+apptPlanTitle:["Terminplan (Woche)","Appointment week plan"],
+apptPlanHelp:["Alle Termine der Kinder in dieser Woche. Wöchentlich / alle 2 Wochen / einmalig.","All children’s appointments this week. Weekly / bi-weekly / one-off."],
+prevWeek:["← Vorherige","← Previous"],
+thisWeek:["Diese Woche","This week"],
+nextWeek:["Nächste →","Next →"],
+backup:["Backup","Backup"],
+exportData:["Daten exportieren","Export data"],
+importData:["Backup importieren","Import backup"],
+importWarn:["Import ersetzt Kinder, Termine, Stundenplan und Status dieses Horts. Fortfahren?","Import replaces children, appointments, schedule and statuses for this Hort. Continue?"],
+dbHint:["Datenbank","Database"],
 themes:[["Wald","Himmel","Sonne","Beere","Kontrast"],["Forest","Sky","Sun","Berry","Contrast"]],
 };
 const EMAP={
@@ -439,6 +450,45 @@ async function saveChild(id){
 }
 async function delChild(id){if(!confirm(t("confDel")))return;await api("DELETE","/api/children/"+id);closePanel()}
 
+let apptWeekOffset=0;
+async function openApptPlan(offset){
+  if(typeof offset==="number") apptWeekOffset=offset;
+  const week=await api("GET","/api/appointments/week?offset="+apptWeekOffset);
+  const days=DAYS();
+  const mon=new Date(week.monday+"T12:00:00");
+  const rangeLabel=mon.toLocaleDateString(LOC(),{day:"2-digit",month:"2-digit"})+" – "+
+    new Date(mon.getTime()+6*864e5).toLocaleDateString(LOC(),{day:"2-digit",month:"2-digit",year:"numeric"});
+  let body=`<div class="flex flex-wrap gap-2 mb-3">
+    <button class="btn" onclick="openApptPlan(${apptWeekOffset-1})">${t("prevWeek")}</button>
+    <button class="btn" onclick="openApptPlan(0)">${t("thisWeek")}</button>
+    <button class="btn" onclick="openApptPlan(${apptWeekOffset+1})">${t("nextWeek")}</button>
+    <span class="font-bold self-center ml-2">${esc(rangeLabel)}</span>
+  </div>`;
+  body+=`<div class="sched-wrap"><table class="sched"><thead><tr>`;
+  for(const d of week.days){
+    const label=days[d.weekday]||d.date;
+    const isToday=d.date===new Date().toISOString().slice(0,10);
+    body+=`<th class="${isToday?"bg-amber-100":""}">${esc(label)}<div class="text-xs font-normal opacity-60">${esc(d.date.slice(5))}</div></th>`;
+  }
+  body+=`</tr></thead><tbody><tr>`;
+  for(const d of week.days){
+    const items=d.items||[];
+    body+=`<td class="cell" style="min-width:120px;vertical-align:top">`;
+    if(!items.length) body+=`<span class="opacity-30">—</span>`;
+    else items.forEach(a=>{
+      body+=`<div class="rounded-lg px-2 py-1.5 mb-1.5 text-sm" style="background:${a.color||"#64748b"}22;border-left:4px solid ${a.color||"#64748b"}">
+        <div class="font-extrabold">${esc(a.start_time)} ${esc(a.title)}</div>
+        <div class="cell-meta">${esc(a.child_name)}${a.group_name?" · "+esc(a.group_name):""}</div>
+        <div class="cell-meta opacity-60">${esc(a.recurrence||(a.is_recurring?"weekly":"once"))}${a.alert_lead_minutes?` · 🔔 ${a.alert_lead_minutes}m`:""}</div>
+        <button class="btn !min-h-[28px] !px-2 text-xs mt-1" onclick="openAppt(${a.child_id},${a.id})">✎</button>
+      </div>`;
+    });
+    body+=`</td>`;
+  }
+  body+=`</tr></tbody></table></div>`;
+  showPanel(head(t("apptPlanTitle"))+`<p class="text-sm opacity-70 mb-3">${t("apptPlanHelp")}</p>`+body);
+}
+
 async function openPlan(){
   S.planGroup=S.planGroup??"";
   const canEdit=S.me&&S.me.role==="manager";
@@ -569,7 +619,9 @@ async function saveSlots(){
 async function openSettings(){
   const users=await api("GET","/api/users");
   const trusted=await api("GET","/api/trusted-ips").catch(()=>[]);
+  const health=await api("GET","/api/health").catch(()=>({db:"?",persistent:false}));
   S.theme=S.pub.theme; S.logo=S.pub.logo;
+  const dbOk=!!health.persistent;
   showPanel(head(t("settings"))+`
   <h3 class="font-extrabold mb-2">${t("brand")}</h3>
   <div class="space-y-3 mb-6">
@@ -579,6 +631,15 @@ async function openSettings(){
     <div class="font-bold text-sm">${t("theme")}</div>
     <div id="themeBox" class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>
     <button class="btn bg-btn" onclick="saveSettings()">${t("save")}</button>
+  </div>
+  <h3 class="font-extrabold mb-2">${t("dbHint")}</h3>
+  <div class="card rounded-xl px-3 py-2 mb-4 text-sm ${dbOk?"bg-emerald-50":"bg-amber-50"}">
+    <b>${esc(health.db||"?")}</b> · ${dbOk?(L==="de"?"persistent (überlebt Deploy)":"persistent (survives deploy)"):(L==="de"?"⚠️ SQLite auf Render wird bei jedem Deploy gelöscht – bitte Postgres verbinden!":"⚠️ SQLite on Render is wiped on deploy – connect Postgres!")}
+  </div>
+  <h3 class="font-extrabold mb-2">${t("backup")}</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <button class="btn bg-btn" onclick="doExport()">${t("exportData")}</button>
+    <label class="btn cursor-pointer">${t("importData")}<input type="file" accept="application/json,.json" class="hidden" onchange="doImport(event)"></label>
   </div>
   <h3 class="font-extrabold mb-2">${t("trustedIps")}</h3>
   <p class="text-xs opacity-60 mb-2">${t("yourIp")}: ${esc((S.publicInfo&&S.publicInfo.client_ip)||"?")}</p>
@@ -605,6 +666,27 @@ async function saveSettings(){
   const body={hort_name:$("#s_name").value.trim(),logo:$("#s_logo").value.trim(),theme:S.theme,language:L,simple_mode:isSimple()};
   if(!body.hort_name){alert(t("check"));return}
   S.pub=await api("PUT","/api/settings",body); brand(); closePanel();
+}
+async function doExport(){
+  const data=await api("GET","/api/export");
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`hort-backup-${(S.pub.code||S.pub.hort_name||"hort").replace(/\s+/g,"_")}-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+async function doImport(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file)return;
+  if(!confirm(t("importWarn"))){ev.target.value="";return}
+  try{
+    const text=await file.text();
+    const body=JSON.parse(text);
+    await api("POST","/api/import",body);
+    alert(L==="de"?"Import ok – Seite neu laden.":"Import ok – reload.");
+    location.reload();
+  }catch(e){alert((e&&e.message)||t("check"))}
+  ev.target.value="";
 }
 async function addUser(){
   const name=$("#nu_name").value.trim(),username=$("#nu_user").value.trim(),password=$("#nu_pw").value,role=$("#nu_role").value;
