@@ -15,4 +15,4 @@ services:
       - key: DATABASE_URL
         sync: false   # Neon-Verbindungsadresse, wird beim Einrichten eingegeben
       - key: FEEDBACK_EMAIL
-        sync: false   # E-Mail-Adresse für Rückmeldungen (optional)
+        value: KontaktKindle.CH@gmail.com   # Adresse für Rückmeldungen
