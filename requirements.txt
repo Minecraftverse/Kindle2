@@ -1,5 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy>=2.0,<2.1
 psycopg2-binary
+pydantic>=2
 tzdata
