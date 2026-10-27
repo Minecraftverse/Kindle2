@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hort</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme=wald]{--bg:#eef3f3;--ink:#12302f;--head:#12302f;--headtx:#fff;--alert:#f5a524;--alerttx:#12302f;--btn:#12302f;--line:#c5d3d3}
+[data-theme=himmel]{--bg:#eef3fb;--ink:#12274a;--head:#1e3a8a;--headtx:#fff;--alert:#fbbf24;--alerttx:#12274a;--btn:#1e3a8a;--line:#c3d0e8}
+[data-theme=sonne]{--bg:#fff3e6;--ink:#431407;--head:#9a3412;--headtx:#fff;--alert:#facc15;--alerttx:#431407;--btn:#9a3412;--line:#ecc9a8}
+[data-theme=beere]{--bg:#f5effa;--ink:#2e1065;--head:#6b21a8;--headtx:#fff;--alert:#fbbf24;--alerttx:#2e1065;--btn:#6b21a8;--line:#d8c3ec}
+[data-theme=kontrast]{--bg:#fff;--ink:#000;--head:#000;--headtx:#fff;--alert:#ffe600;--alerttx:#000;--btn:#000;--line:#000}
+body{font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+html.simple{font-size:21px} .simple .adv{display:none!important}
+.simple main{display:block}.simple #grid{grid-template-columns:repeat(auto-fill,minmax(22rem,1fr))!important}
+.bg-head{background:var(--head);color:var(--headtx)} .bg-alert{background:var(--alert);color:var(--alerttx)}
+.bg-btn{background:var(--btn);color:#fff} .card{background:#fff;border:2px solid var(--line)}
+.b-alert{border-color:var(--alert)!important} .b-away{border-color:#3b82f6!important}
+button,input,select{touch-action:manipulation}
+.btn{min-height:44px;padding:0 14px;border-radius:12px;font-weight:700;background:#e2e8f0;color:#0f172a}
+.btn.bg-btn{background:var(--btn);color:#fff}
+.inp{min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 10px;background:#fff;color:#000;width:100%}
+:focus-visible{outline:3px solid var(--alert);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.animate-pulse{animation:none}}
+</style>
+</head>
+<body class="min-h-screen">
+<div id="auth" class="hidden p-4"></div>
+<div id="app" class="hidden">
+<header class="sticky top-0 z-20 bg-head px-4 py-3 flex flex-wrap items-center gap-3">
+  <img id="logo" class="h-11 rounded hidden" alt="">
+  <div class="mr-auto"><h1 id="hname" class="text-xl font-extrabold leading-tight"></h1><div id="clock" class="text-sm opacity-80"></div></div>
+  <input id="q" class="inp !w-56" data-p="search" oninput="S.q=this.value;render()">
+  <select id="group" class="inp !w-40" onchange="S.group=this.value;render()"></select>
+  <select id="sf" class="inp !w-44 adv" onchange="S.sf=this.value;render()"></select>
+  <button class="btn" onclick="openChild(null)" data-i="addChild"></button>
+  <button class="btn" onclick="openPlan()" data-i="plan"></button>
+  <button id="settingsBtn" class="btn bg-alert" onclick="openSettings()" data-i="settings"></button>
+  <button id="easyBtn" class="btn" onclick="toggleSimple()"></button>
+  <button class="btn" onclick="toggleLang()" id="langBtn"></button>
+  <button class="btn" onclick="logout()"><span id="who"></span> ⎋</button>
+</header>
+<div id="banner" class="px-4 pt-4 space-y-2"></div>
+<main class="p-4 grid gap-4 xl:grid-cols-[1fr_340px]">
+  <div id="grid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 content-start"></div>
+  <aside class="adv card rounded-2xl p-4 h-fit xl:sticky xl:top-24">
+    <h2 class="font-extrabold text-lg mb-2" data-i="logTitle"></h2><div id="logs" class="space-y-2 max-h-[70vh] overflow-auto text-sm"></div>
+  </aside>
+</main>
+<div id="overlay" class="hidden fixed inset-0 z-30 bg-black/40" onclick="closePanel()"></div>
+<section id="panel" class="hidden fixed z-40 right-0 top-0 h-full w-full max-w-xl bg-white text-slate-900 shadow-2xl overflow-auto p-5"></section>
+</div>
+
+<script>
+/* ===== i18n: [de, en]. To add a language, append one entry to every array and to LANGS. ===== */
+const LANGS=["de","en"],LOCS=["de-CH","en-GB"];
+const T={
+search:["Name oder Gruppe suchen…","Search name or group…"],allGroups:["Alle Gruppen","All groups"],allStatus:["Alle Status","All statuses"],
+addChild:["+ Kind","+ Child"],settings:["Einstellungen","Settings"],easy:["Einfacher Modus","Easy mode"],
+alertHead:["TERMIN BALD","UPCOMING APPOINTMENT"],alertLine:["{0} · {1} um {2} Uhr (in {3} Min.)","{0} · {1} at {2} (in {3} min)"],
+now:["Aktuell: {0}","Currently: {0}"],away:["Unterwegs: {0} ({1} Uhr, {2} Min.)","Away: {0} ({1}, {2} min)"],
+noMatch:["Keine Kinder gefunden. Suche oder Filter zurücksetzen.","No children match. Clear the search or filters."],
+logTitle:["Heute im Protokoll","Today’s log"],logEmpty:["Heute noch nichts eingetragen.","Nothing logged yet today."],
+noGroup:["Keine Gruppe","No group"],since:["seit {0}","since {0}"],notePh:["Notiz…","Quick note…"],logBtn:["Eintragen","Log"],profile:["Profil","Profile"],
+close:["Schliessen","Close"],newChild:["Neues Kind","New child"],first:["Vorname","First name"],last:["Nachname","Last name"],
+groupPh:["Gruppe / Klasse","Group / grade"],fields:["Eigene Felder","Custom fields"],fieldPh:["Feld (z. B. Allergien)","Field (e.g. Allergies)"],valuePh:["Wert","Value"],
+addField:["+ Feld","+ Field"],saveProfile:["Profil speichern","Save profile"],delChild:["Kind löschen","Delete child"],
+confDelChild:["Kind samt Terminen und Protokoll löschen?","Delete this child with all appointments and log entries?"],
+saveFirst:["Zuerst das Profil speichern, dann Termine hinzufügen.","Save the profile first, then add appointments."],
+appts:["Termine","Appointments"],noAppts:["Noch keine Termine.","No appointments yet."],every:["jeden {0}","every {0}"],
+apptLine:["{0} um {1} Uhr · {2} Min. · Erinnerung {3} Min. vorher","{0} at {1} · {2} min · alert {3} min before"],
+newAppt:["Neuer Termin","New appointment"],titlePh:["Titel (z. B. Physio)","Title (e.g. Physio)"],type:["Art…","Type…"],weekly:["Jede Woche","Weekly"],oneoff:["Einmalig","One-off"],
+dur:["Dauer (Min.)","Duration (min)"],lead:["Erinnerung (Min.)","Alert lead (min)"],addAppt:["Termin hinzufügen","Add appointment"],del:["Löschen","Delete"],save:["Speichern","Save"],
+pAllergy:["Allergien","Allergies"],pDiet:["Ernährung","Dietary Restrictions"],pEmerg:["Notfallkontakt","Emergency Contact"],pPick:["Abholberechtigte","Authorized Pickups"],pBus:["Busline","Bus Route"],
+brand:["Name & Aussehen","Name & look"],hortName:["Name des Horts","Hort name"],logo:["Logo","Logo"],pickLogo:["Logo wählen","Choose logo"],rmLogo:["Entfernen","Remove"],
+theme:["Farbschema","Colour theme"],lang:["Sprache","Language"],easyDef:["Einfachen Modus standardmässig einschalten","Turn easy mode on by default"],
+themes:[["Wald","Himmel","Sonne","Beere","Hoher Kontrast"],["Forest","Sky","Sun","Berry","High contrast"]],
+statuses:["Anwesenheits-Status","Attendance statuses"],statusHelp:["Symbol, Name und Farbe. Der Standard gilt für alle Kinder am Tagesanfang.","Icon, name and colour. The default applies to every child at the start of the day."],
+def:["Standard","Default"],addStatus:["+ Status","+ Status"],newStatus:["Neuer Status","New status"],
+types:["Terminarten","Appointment types"],typeHelp:["Die Erinnerungszeit wird beim neuen Termin vorausgefüllt.","The lead time is pre-filled when adding an appointment."],min:["Min.","min"],
+addType:["+ Terminart","+ Type"],newType:["Neue Art","New type"],confDel:["Wirklich löschen?","Really delete?"],
+accounts:["Konten","Accounts"],accHelp:["Als Manager legen Sie hier Konten für Ihr Team an.","As manager you create accounts for your team here."],
+uName:["Name","Name"],uUser:["Benutzername","Username"],uPw:["Passwort (min. 6 Zeichen)","Password (min. 6 characters)"],uNewPw:["Neues Passwort (leer = gleich lassen)","New password (empty = keep)"],
+manager:["Manager","Manager"],staff:["Mitarbeiter","Staff"],addUser:["Konto anlegen","Create account"],
+login:["Anmelden","Sign in"],setupTitle:["Hort einrichten","Set up your Hort"],setupBtn:["Einrichten","Set up"],mgrAcc:["Manager-Konto","Manager account"],demo:["Beispieldaten laden","Load sample data"],
+badLogin:["Benutzername oder Passwort falsch.","Wrong username or password."],defNo:["Der Standard-Status kann so nicht geändert werden. Wählen Sie zuerst einen anderen als Standard.","The default status can’t be changed this way. Make another status the default first."],
+taken:["Dieser Name ist schon vergeben.","This name is already taken."],lastMgr:["Es braucht mindestens einen Manager.","At least one manager is required."],selfDel:["Das eigene Konto kann nicht gelöscht werden.","You can’t delete your own account."],
+check:["Bitte Eingaben prüfen (Pflichtfelder, Passwort mind. 6 Zeichen).","Please check your input (required fields, password at least 6 characters)."],
+forbidden:["Das darf nur der Manager.","Only the manager can do this."],
+plan:["Stundenplan","Weekly plan"],planTitle:["Wochenplan & Mittagessen","Weekly programme & lunches"],
+planHelp:["Hier tragen Sie das wöchentliche Programm und die Mittagsmenüs ein. Gilt jede Woche.","Enter the weekly programme and lunch menus here. Applies every week."],
+lunch:["Mittagessen","Lunch"],program:["Programm","Programme"],todayLunch:["Heute zu Mittag","Today’s lunch"],
+noPlan:["Noch kein Wochenplan. Manager können ihn unter «Stundenplan» eintragen.","No weekly plan yet. Managers can add it under «Weekly plan»."],
+addPlan:["+ Eintrag","+ Entry"],newLunch:["Neues Mittagessen","New lunch"],newProgram:["Neues Programm","New programme"],
+timeFrom:["Von","From"],timeTo:["Bis","To"],notesPh:["Notiz (z. B. vegetarisch, Rucksack)","Note (e.g. vegetarian, backpack)"],
+day:["Tag","Day"],kind:["Art","Type"]};
+const EMAP={"Wrong username or password.":"badLogin","Default status cannot be changed this way.":"defNo","Name already taken.":"taken","At least one manager is required.":"lastMgr","You cannot delete your own account.":"selfDel","Only the manager can do this.":"forbidden"};
+
+const S={pub:{},me:null,roster:[],statuses:[],types:[],logs:[],plan:[],q:"",group:"",sf:"",theme:"wald",logo:""};
+let L=localStorage.lang||"de",TOKEN=localStorage.token||"";
+const li=()=>LANGS.indexOf(L),LOC=()=>LOCS[li()];
+const t=(k,...a)=>{let s=T[k][li()];a.forEach((v,i)=>s=s.replace("{"+i+"}",v));return s};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DAYS=()=>[...Array(7)].map((_,i)=>new Date(2024,0,1+i).toLocaleDateString(LOC(),{weekday:"long"}));
+const tm=iso=>new Date(iso).toLocaleTimeString(LOC(),{hour:"2-digit",minute:"2-digit"});
+const THEMES=["wald","himmel","sonne","beere","kontrast"],SW=["#12302f","#1e3a8a","#9a3412","#6b21a8","#000000"];
+const isSimple=()=>localStorage.simple!==undefined?localStorage.simple==="1":!!S.pub.simple_mode;
+
+async function api(m,u,b){
+  const r=await fetch(u,{method:m,headers:{"Content-Type":"application/json",...(TOKEN?{Authorization:"Bearer "+TOKEN}:{})},body:b?JSON.stringify(b):undefined});
+  if(!r.ok){
+    let d="";try{d=(await r.json()).detail}catch{}
+    if(r.status===401&&u!=="/api/login"){TOKEN="";localStorage.token="";authScreen("login");throw 0}
+    alert(r.status===422?t("check"):EMAP[d]?t(EMAP[d]):d||r.statusText);throw 0;
+  }
+  return r.json();
+}
+const pill=(s,big)=>s?`<span class="inline-flex items-center gap-1 rounded-full font-bold ${big?'px-3 py-1 text-sm':'px-2 py-0.5 text-xs'}" style="background:${s.color_code}1f;color:${s.color_code};border:2px solid ${s.color_code}">${esc(s.icon)} ${esc(s.label)}</span>`:"";
+const lab=(txt,html)=>`<label class="block font-bold text-sm">${txt}<div class="font-normal">${html}</div></label>`;
+const inp=(id,v="",ph="",x="")=>`<input id="${id}" class="inp" value="${esc(v)}" placeholder="${esc(ph)}" ${x}>`;
+
+/* ===== branding / language / mode ===== */
+function applyTheme(th){document.documentElement.dataset.theme=th}
+function brand(){
+  applyTheme(S.pub.theme);document.title=S.pub.hort_name;document.documentElement.lang=L;
+  document.documentElement.classList.toggle("simple",isSimple());
+  $("#hname").textContent=S.pub.hort_name;const lg=$("#logo");lg.src=S.pub.logo||"";lg.classList.toggle("hidden",!S.pub.logo);
+  document.querySelectorAll("[data-i]").forEach(e=>e.textContent=t(e.dataset.i));
+  document.querySelectorAll("[data-p]").forEach(e=>e.placeholder=t(e.dataset.p));
+  $("#easyBtn").textContent=(isSimple()?"✓ ":"")+t("easy");$("#langBtn").textContent=L==="de"?"EN":"DE";
+  $("#settingsBtn").classList.toggle("hidden",!S.me||S.me.role!=="manager");
+  if(S.me)$("#who").textContent=S.me.name;
+}
+function toggleLang(){L=LANGS[(li()+1)%LANGS.length];localStorage.lang=L;if(!$("#auth").classList.contains("hidden"))return authScreen(S.authMode);closePanel(true);brand();render()}
+function toggleSimple(){localStorage.simple=isSimple()?"0":"1";brand();render()}
+async function logout(){try{await api("POST","/api/logout")}catch{}TOKEN="";localStorage.token="";S.me=null;authScreen("login")}
+
+/* ===== login / first-run setup ===== */
+const themePicker=cur=>THEMES.map((n,i)=>`<button type="button" class="btn !px-3 flex items-center gap-2 ${n===cur?'ring-4 ring-offset-1 ring-slate-500':''}" onclick="pickTheme('${n}')"><span class="inline-block h-5 w-5 rounded-full" style="background:${SW[i]}"></span>${T.themes[li()][i]}</button>`).join(" ");
+function pickTheme(n){S.theme=n;applyTheme(n);if(!$("#auth").classList.contains("hidden"))authScreen(S.authMode,true);else $("#themeBox").innerHTML=themePicker(n)}
+function authScreen(mode,keep){
+  S.authMode=mode;$("#app").classList.add("hidden");const a=$("#auth"),setup=mode==="setup";a.classList.remove("hidden");
+  const v=id=>keep&&$("#"+id)?$("#"+id).value:"";
+  a.innerHTML=`<div class="card rounded-2xl p-6 w-full max-w-md space-y-3 mx-auto my-6">
+   <div class="flex items-center gap-3">${S.pub.logo?`<img src="${S.pub.logo}" class="h-12" alt="">`:""}<h1 class="text-2xl font-extrabold mr-auto">${esc(setup?t("setupTitle"):S.pub.hort_name)}</h1><button class="btn" onclick="toggleLang()">${L==="de"?"EN":"DE"}</button></div>
+   ${setup?lab(t("hortName"),inp("a_hort",v("a_hort")))+lab(t("theme"),`<div class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>`)+`<h2 class="font-extrabold pt-2">${t("mgrAcc")}</h2>`+lab(t("uName"),inp("a_name",v("a_name"))):""}
+   ${lab(t("uUser"),inp("a_user",v("a_user"),"","autocomplete=username autocapitalize=none"))}
+   ${lab(t("uPw").split(" (")[0],inp("a_pw","","",`type=password autocomplete=current-password onkeydown="if(event.key==='Enter')${setup?'doSetup()':'doLogin()'}"`))}
+   ${setup?`<label class="flex items-center gap-2 font-bold"><input id="a_demo" type="checkbox" class="h-6 w-6" ${keep&&$("#a_demo")?.checked?"checked":""}>${t("demo")}</label>`:""}
+   <button class="btn bg-btn w-full" onclick="${setup?'doSetup()':'doLogin()'}">${t(setup?"setupBtn":"login")}</button></div>`;
+}
+async function doLogin(){const r=await api("POST","/api/login",{username:$("#a_user").value,password:$("#a_pw").value});TOKEN=r.token;localStorage.token=TOKEN;boot()}
+async function doSetup(){
+  const r=await api("POST","/api/setup",{hort_name:$("#a_hort").value,name:$("#a_name").value,username:$("#a_user").value,password:$("#a_pw").value,theme:S.theme,language:L,simple_mode:false,logo:"",demo:$("#a_demo").checked});
+  TOKEN=r.token;localStorage.token=TOKEN;boot();
+}
+async function boot(){
+  S.pub=await api("GET","/api/public");S.theme=S.pub.theme;
+  if(!localStorage.lang)L=S.pub.language;
+  if(!S.pub.configured){brand();return authScreen("setup")}
+  if(!TOKEN){brand();return authScreen("login")}
+  try{S.me=await api("GET","/api/me")}catch{return}
+  $("#auth").classList.add("hidden");$("#app").classList.remove("hidden");brand();await load();
+}
+
+/* ===== dashboard ===== */
+async function load(){
+  [S.roster,S.statuses,S.types,S.logs,S.plan]=await Promise.all(["/api/roster","/api/statuses","/api/appointment-types","/api/logs","/api/weekly-plan"].map(u=>api("GET",u)));
+  render();
+}
+function render(){
+  const groups=[...new Set(S.roster.map(c=>c.group_name).filter(Boolean))].sort();
+  $("#group").innerHTML=`<option value="">${t("allGroups")}</option>`+groups.map(g=>`<option ${g==S.group?"selected":""}>${esc(g)}</option>`).join("");
+  $("#sf").innerHTML=`<option value="">${t("allStatus")}</option>`+S.statuses.map(s=>`<option value="${s.id}" ${s.id==S.sf?"selected":""}>${esc(s.icon)} ${esc(s.label)}</option>`).join("");
+  const wd=new Date().getDay(); // 0=Sun .. 6=Sat → convert to Mon=0
+  const dayIdx=wd===0?6:wd-1;
+  const todayPlan=(S.plan||[]).filter(p=>p.day_of_week===dayIdx);
+  const lunch=todayPlan.find(p=>p.kind==="lunch");
+  const progs=todayPlan.filter(p=>p.kind==="program");
+  let ban=S.roster.flatMap(c=>c.appointments.filter(a=>a.state==="upcoming").map(a=>({c,a}))).map(({c,a})=>`
+    <div class="animate-pulse bg-alert flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 font-extrabold" role="alert">
+      <span class="text-2xl">⏰</span><span>${t("alertHead")}: ${esc(c.first_name)} ${esc(c.last_name)} · ${esc(a.title)} ${t("alertLine","","",a.start_time,a.minutes_until).replace(/^ · +/,"").replace(/^ ?· ?/,"")}</span>
+      ${c.status?`<span class="ml-auto text-sm">${t("now",esc(c.status.label))}</span>`:""}</div>`).join("");
+  if(lunch||progs.length){
+    ban+=`<div class="card rounded-2xl px-4 py-3 flex flex-wrap items-center gap-3 border-2">
+      ${lunch?`<span class="font-extrabold text-base">🍽️ ${t("todayLunch")}: ${esc(lunch.title)}${lunch.notes?" · "+esc(lunch.notes):""}</span>`:""}
+      ${progs.map(p=>`<span class="text-sm font-bold opacity-80">📅 ${p.start_time?esc(p.start_time)+(p.end_time?"–"+esc(p.end_time):"")+" ":""}${esc(p.title)}</span>`).join("")}
+    </div>`;
+  }
+  $("#banner").innerHTML=ban;
+  const q=S.q.trim().toLowerCase();
+  const list=S.roster.filter(c=>(!q||`${c.first_name} ${c.last_name} ${c.group_name}`.toLowerCase().includes(q))&&(!S.group||c.group_name===S.group)&&(!S.sf||(c.status&&c.status.id==S.sf)));
+  $("#grid").innerHTML=list.length?list.map(card).join(""):`<p class="col-span-full text-center opacity-70 py-16">${t("noMatch")}</p>`;
+  $("#logs").innerHTML=S.logs.length?S.logs.map(l=>`<div class="border-l-4 pl-2" style="border-color:${l.status?l.status.color_code:'#94a3b8'}"><div class="opacity-70">${tm(l.timestamp)} · <b>${esc(l.child_name)}</b></div>${l.status?pill(l.status):""}${l.note?`<div>${esc(l.note)}</div>`:""}</div>`).join(""):`<p class="opacity-70">${t("logEmpty")}</p>`;
+}
+function card(c){
+  const away=c.appointments.find(a=>a.state==="away"),up=c.appointments.find(a=>a.state==="upcoming");
+  return `<article class="card rounded-2xl p-4 flex flex-col gap-3 ${up?'b-alert':away?'b-away':''}">
+    <div class="flex items-start gap-2"><div class="mr-auto"><h3 class="text-lg font-extrabold leading-tight">${esc(c.first_name)} ${esc(c.last_name)}</h3>
+      <div class="text-sm opacity-70">${esc(c.group_name||t("noGroup"))}${c.status_since?" · "+t("since",tm(c.status_since)):""}</div></div>${pill(c.status,true)}</div>
+    ${away?`<div class="rounded-xl bg-blue-100 text-blue-900 font-bold px-3 py-2 text-sm">🚪 ${t("away",esc(away.title),away.start_time,away.duration_minutes)}</div>`:""}
+    <div class="flex flex-wrap gap-1.5">${c.appointments.map(a=>`<span class="text-xs font-bold rounded-lg px-2 py-1 ${a.state==='done'?'opacity-40 line-through':''}" style="background:${a.color}1f;color:${a.color}">${a.start_time} ${esc(a.title)}</span>`).join("")}</div>
+    <div class="flex flex-wrap gap-1.5">${S.statuses.map(s=>`<button class="btn !px-3 text-sm border-2" style="${c.status&&c.status.id===s.id?`background:${s.color_code};color:#fff;border-color:${s.color_code}`:`color:${s.color_code};border-color:${s.color_code}55;background:#fff`}" onclick="setStatus(${c.id},${s.id})">${esc(s.icon)} ${esc(s.label)}</button>`).join("")}</div>
+    ${c.last_note?`<div class="adv text-sm bg-slate-100 text-slate-900 rounded-lg px-3 py-2">📝 ${esc(c.last_note.note)} <span class="opacity-60">(${tm(c.last_note.timestamp)})</span></div>`:""}
+    <div class="flex gap-2"><input id="note-${c.id}" class="inp adv" placeholder="${t("notePh")}" onkeydown="if(event.key==='Enter')addNote(${c.id})">
+      <button class="btn bg-btn adv" onclick="addNote(${c.id})">${t("logBtn")}</button><button class="btn" onclick="openChild(${c.id})">${t("profile")}</button></div></article>`;
+}
+async function setStatus(cid,sid){await api("POST","/api/attendance",{child_id:cid,status_id:sid});load()}
+async function addNote(cid){const el=$("#note-"+cid);if(el.value.trim()){await api("POST","/api/attendance",{child_id:cid,note:el.value});load()}}
+
+/* ===== side panel ===== */
+function showPanel(html){$("#panel").innerHTML=html;$("#panel").classList.remove("hidden");$("#overlay").classList.remove("hidden")}
+function closePanel(quiet){$("#panel").classList.add("hidden");$("#overlay").classList.add("hidden");$("#panel").innerHTML="";if(!quiet)load()}
+const head=title=>`<div class="flex items-center mb-4"><h2 class="text-xl font-extrabold mr-auto">${title}</h2><button class="btn" onclick="closePanel()">${t("close")}</button></div>`;
+const fieldRow=(k="",v="")=>`<div class="cf flex gap-2"><input class="inp cfk" placeholder="${t("fieldPh")}" value="${esc(k)}"><input class="inp cfv" placeholder="${t("valuePh")}" value="${esc(v)}"><button class="btn bg-red-100 text-red-800" onclick="this.parentNode.remove()">✕</button></div>`;
+
+async function openChild(id){
+  const c=id?S.roster.find(x=>x.id===id):{first_name:"",last_name:"",group_name:"",custom_fields:{}};
+  const appts=id?await api("GET","/api/appointments?child_id="+id):[];
+  showPanel(head(id?esc(c.first_name+" "+c.last_name):t("newChild"))+`
+    <div class="grid grid-cols-2 gap-2 mb-2">${inp("fn",c.first_name,t("first"))}${inp("ln",c.last_name,t("last"))}</div>
+    <div class="mb-4">${inp("gn",c.group_name,t("groupPh"))}</div>
+    <h3 class="font-extrabold mb-2">${t("fields")}</h3>
+    <div id="cfs" class="space-y-2 mb-2">${Object.entries(c.custom_fields||{}).map(([k,v])=>fieldRow(k,v)).join("")}</div>
+    <div class="flex flex-wrap gap-2 mb-4"><button class="btn" onclick="$('#cfs').insertAdjacentHTML('beforeend',fieldRow())">${t("addField")}</button>
+      ${["pAllergy","pDiet","pEmerg","pPick","pBus"].map(k=>`<button class="btn !min-h-[36px] text-sm" onclick="$('#cfs').insertAdjacentHTML('beforeend',fieldRow(t('${k}')))">${t(k)}</button>`).join("")}</div>
+    <div class="flex gap-2 mb-6"><button class="btn bg-btn" onclick="saveChild(${id||"null"})">${t("saveProfile")}</button>${id?`<button class="btn bg-red-100 text-red-800" onclick="delChild(${id})">${t("delChild")}</button>`:""}</div>
+    ${id?apptSection(id,appts):`<p class="opacity-70">${t("saveFirst")}</p>`}`);
+}
+async function saveChild(id){
+  const custom_fields={};document.querySelectorAll(".cf").forEach(r=>{const k=r.querySelector(".cfk").value.trim();if(k)custom_fields[k]=r.querySelector(".cfv").value});
+  const b={first_name:$("#fn").value.trim(),last_name:$("#ln").value.trim(),group_name:$("#gn").value.trim(),custom_fields};
+  const s=id?await api("PUT","/api/children/"+id,b):await api("POST","/api/children",b);await load();openChild(s.id);
+}
+async function delChild(id){if(confirm(t("confDelChild"))){await api("DELETE","/api/children/"+id);closePanel()}}
+function apptSection(cid,appts){
+  return `<h3 class="font-extrabold mb-2">${t("appts")}</h3><div class="space-y-2 mb-4">${appts.length?appts.map(a=>`
+    <div class="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2"><div class="mr-auto"><b>${esc(a.title)}</b> <span class="opacity-60">${esc(a.category)}</span>
+    <div class="text-sm">${t("apptLine",a.is_recurring?t("every",DAYS()[a.day_of_week]):a.date,a.start_time,a.duration_minutes,a.alert_lead_minutes)}</div></div>
+    <button class="btn bg-red-100 text-red-800" onclick="delAppt(${a.id},${cid})">${t("del")}</button></div>`).join(""):`<p class="opacity-70">${t("noAppts")}</p>`}</div>
+  <div class="rounded-xl border-2 border-dashed border-slate-300 p-3 space-y-2"><div class="font-bold">${t("newAppt")}</div><div class="grid grid-cols-2 gap-2">
+    ${inp("at","",t("titlePh"))}
+    <select id="ac" class="inp" onchange="const x=S.types.find(y=>y.name===this.value);if(x){$('#al').value=x.default_lead_minutes;if(!$('#at').value)$('#at').value=x.name}"><option value="">${t("type")}</option>${S.types.map(x=>`<option>${esc(x.name)}</option>`).join("")}</select>
+    <select id="ar" class="inp" onchange="$('#awd').classList.toggle('hidden',this.value==='0');$('#ad').classList.toggle('hidden',this.value==='1')"><option value="1">${t("weekly")}</option><option value="0">${t("oneoff")}</option></select>
+    <select id="awd" class="inp">${DAYS().map((d,i)=>`<option value="${i}">${d}</option>`).join("")}</select><input id="ad" type="date" class="inp hidden">
+    <input id="as" type="time" class="inp" value="15:30"><label class="text-sm">${t("dur")}<input id="adu" type="number" min="5" class="inp" value="45"></label>
+    <label class="text-sm">${t("lead")}<input id="al" type="number" min="0" class="inp" value="15"></label></div>
+    <button class="btn bg-btn" onclick="addAppt(${cid})">${t("addAppt")}</button></div>`;
+}
+async function addAppt(cid){
+  const rec=$("#ar").value==="1";
+  await api("POST","/api/appointments",{child_id:cid,title:$("#at").value.trim(),category:$("#ac").value,is_recurring:rec,day_of_week:rec?+$("#awd").value:null,date:rec?null:($("#ad").value||null),start_time:$("#as").value,duration_minutes:+$("#adu").value,alert_lead_minutes:+$("#al").value});
+  await load();openChild(cid);
+}
+async function delAppt(id,cid){await api("DELETE","/api/appointments/"+id);await load();openChild(cid)}
+
+
+/* ===== weekly plan (Stundenplan + lunches) ===== */
+async function openPlan(){
+  const canEdit=S.me&&S.me.role==="manager";
+  const days=DAYS();
+  const byDay={};
+  for(let i=0;i<7;i++) byDay[i]=[];
+  (S.plan||[]).forEach(p=>byDay[p.day_of_week].push(p));
+  let body="";
+  for(let i=0;i<7;i++){
+    const items=byDay[i];
+    const lunch=items.find(x=>x.kind==="lunch");
+    const progs=items.filter(x=>x.kind==="program");
+    body+=`<div class="rounded-xl border-2 border-slate-200 p-3 mb-3">
+      <div class="font-extrabold text-lg mb-2">${esc(days[i])}</div>
+      <div class="space-y-2">`;
+    if(lunch){
+      body+=`<div class="flex items-start gap-2 bg-amber-50 rounded-lg px-3 py-2">
+        <span class="text-xl">🍽️</span><div class="mr-auto"><b>${esc(lunch.title)}</b>${lunch.notes?`<div class="text-sm opacity-70">${esc(lunch.notes)}</div>`:""}${lunch.start_time?`<div class="text-xs opacity-60">${esc(lunch.start_time)}</div>`:""}</div>
+        ${canEdit?`<button class="btn bg-red-100 text-red-800 !min-h-[36px]" onclick="delPlan(${lunch.id})">✕</button>`:""}</div>`;
+    }
+    progs.forEach(pr=>{
+      body+=`<div class="flex items-start gap-2 bg-slate-50 rounded-lg px-3 py-2">
+        <span class="text-xl">📅</span><div class="mr-auto"><b>${esc(pr.title)}</b>
+        <div class="text-sm opacity-70">${pr.start_time?esc(pr.start_time):""}${pr.end_time?" – "+esc(pr.end_time):""}${pr.notes?" · "+esc(pr.notes):""}</div></div>
+        ${canEdit?`<button class="btn bg-red-100 text-red-800 !min-h-[36px]" onclick="delPlan(${pr.id})">✕</button>`:""}</div>`;
+    });
+    if(!items.length) body+=`<p class="text-sm opacity-50">—</p>`;
+    body+=`</div></div>`;
+  }
+  const form=canEdit?`
+  <div class="rounded-xl border-2 border-dashed border-slate-300 p-3 space-y-2 mt-4">
+    <div class="font-bold">${t("addPlan")}</div>
+    <div class="grid grid-cols-2 gap-2">
+      <select id="pl_day" class="inp">${days.map((d,i)=>`<option value="${i}">${esc(d)}</option>`).join("")}</select>
+      <select id="pl_kind" class="inp"><option value="lunch">${t("lunch")}</option><option value="program">${t("program")}</option></select>
+      ${inp("pl_title","","")}
+      <input id="pl_from" type="time" class="inp" placeholder="${t("timeFrom")}">
+      <input id="pl_to" type="time" class="inp" placeholder="${t("timeTo")}">
+      ${inp("pl_notes","",t("notesPh"))}
+    </div>
+    <button class="btn bg-btn" onclick="addPlan()">${t("addPlan")}</button>
+  </div>`:`<p class="text-sm opacity-70 mt-2">${t("planHelp")}</p>`;
+  showPanel(head(t("planTitle"))+`<p class="text-sm opacity-70 mb-3">${t("planHelp")}</p>`+(S.plan&&S.plan.length?body:`<p class="opacity-70 mb-4">${t("noPlan")}</p>`)+form);
+}
+async function addPlan(){
+  const title=$("#pl_title").value.trim();
+  if(!title){alert(t("check"));return;}
+  await api("POST","/api/weekly-plan",{
+    day_of_week:+$("#pl_day").value,kind:$("#pl_kind").value,title,
+    start_time:$("#pl_from").value||"",end_time:$("#pl_to").value||"",
+    notes:$("#pl_notes").value.trim(),sort_order:0
+  });
+  await load();openPlan();
+}
+async function delPlan(id){
+  if(!confirm(t("confDel")))return;
+  await api("DELETE","/api/weekly-plan/"+id);
+  await load();openPlan();
+}
+
+/* ===== settings (manager only) ===== */
+const rv=(box,f)=>document.querySelector(`#${box} [data-f=${f}]`).value;
+const rowDel=(fn)=>`<button class="btn bg-red-100 text-red-800" onclick="${fn}" aria-label="${t("del")}">✕</button>`;
+async function openSettings(){
+  const users=await api("GET","/api/users");S.theme=S.pub.theme;S.logo=S.pub.logo;
+  const roleSel=(u,id)=>`<select class="inp" data-f="role"><option value="manager" ${u==="manager"?"selected":""}>${t("manager")}</option><option value="staff" ${u==="staff"?"selected":""}>${t("staff")}</option></select>`;
+  showPanel(head(t("settings"))+`
+  <h3 class="font-extrabold mb-2">${t("brand")}</h3><div class="space-y-3 mb-6">
+    ${lab(t("hortName"),inp("s_name",S.pub.hort_name))}
+    <div class="font-bold text-sm">${t("logo")}</div><div class="flex items-center gap-2"><img id="s_logo" src="${S.logo}" class="h-14 rounded ${S.logo?"":"hidden"}" alt="">
+      <label class="btn inline-flex items-center cursor-pointer">${t("pickLogo")}<input type="file" accept="image/*" class="hidden" onchange="readLogo(this)"></label><button class="btn" onclick="S.logo='';$('#s_logo').classList.add('hidden')">${t("rmLogo")}</button></div>
+    <div class="font-bold text-sm">${t("theme")}</div><div id="themeBox" class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>
+    ${lab(t("lang"),`<select id="s_lang" class="inp">${LANGS.map(l=>`<option value="${l}" ${l===S.pub.language?"selected":""}>${l==="de"?"Deutsch":"English"}</option>`).join("")}</select>`)}
+    <label class="flex items-center gap-2 font-bold"><input id="s_simple" type="checkbox" class="h-6 w-6" ${S.pub.simple_mode?"checked":""}>${t("easyDef")}</label>
+    <button class="btn bg-btn" onclick="saveBrand()">${t("save")}</button></div>
+  <h3 class="font-extrabold mb-1">${t("statuses")}</h3><p class="text-sm opacity-70 mb-2">${t("statusHelp")}</p><div class="space-y-2 mb-2">${S.statuses.map(s=>`<div class="flex items-center gap-2" id="st-${s.id}">
+    <input class="inp !w-16 text-center" value="${esc(s.icon)}" data-f="icon" onchange="saveStatus(${s.id})"><input class="inp" value="${esc(s.label)}" data-f="label" onchange="saveStatus(${s.id})">
+    <input type="color" class="h-11 w-14 rounded-lg" value="${s.color_code}" data-f="color" onchange="saveStatus(${s.id})">
+    <label class="text-sm flex items-center gap-1"><input type="radio" name="def" class="h-5 w-5" ${s.is_default?"checked":""} onchange="saveStatus(${s.id},true)">${t("def")}</label>${rowDel(`delRow('statuses',${s.id})`)}</div>`).join("")}</div>
+  <button class="btn mb-6" onclick="addRow('statuses',{label:t('newStatus'),icon:'🔖',color_code:'#0f766e'})">${t("addStatus")}</button>
+  <h3 class="font-extrabold mb-1">${t("types")}</h3><p class="text-sm opacity-70 mb-2">${t("typeHelp")}</p><div class="space-y-2 mb-2">${S.types.map(x=>`<div class="flex items-center gap-2" id="ty-${x.id}">
+    <input class="inp" value="${esc(x.name)}" data-f="name" onchange="saveType(${x.id})"><input type="color" class="h-11 w-14 rounded-lg" value="${x.color}" data-f="color" onchange="saveType(${x.id})">
+    <input type="number" min="0" class="inp !w-20" value="${x.default_lead_minutes}" data-f="lead" onchange="saveType(${x.id})"><span class="text-sm">${t("min")}</span>${rowDel(`delRow('appointment-types',${x.id})`)}</div>`).join("")}</div>
+  <button class="btn mb-6" onclick="addRow('appointment-types',{name:t('newType')+' '+(S.types.length+1),color:'#0f766e',default_lead_minutes:15})">${t("addType")}</button>
+  <h3 class="font-extrabold mb-1">${t("accounts")}</h3><p class="text-sm opacity-70 mb-2">${t("accHelp")}</p><div class="space-y-2 mb-3">${users.map(u=>`<div class="rounded-xl bg-slate-100 p-3 space-y-2" id="us-${u.id}"><div class="grid grid-cols-2 gap-2">
+    <input class="inp" data-f="name" value="${esc(u.name)}" placeholder="${t("uName")}"><input class="inp" data-f="username" value="${esc(u.username)}" placeholder="${t("uUser")}">${roleSel(u.role)}
+    <input class="inp" data-f="pw" type="password" placeholder="${t("uNewPw")}"></div><div class="flex gap-2"><button class="btn bg-btn" onclick="saveUser(${u.id})">${t("save")}</button><button class="btn bg-red-100 text-red-800" onclick="delUser(${u.id})">${t("del")}</button></div></div>`).join("")}</div>
+  <div class="rounded-xl border-2 border-dashed border-slate-300 p-3 space-y-2" id="us-new"><div class="grid grid-cols-2 gap-2"><input class="inp" data-f="name" placeholder="${t("uName")}"><input class="inp" data-f="username" placeholder="${t("uUser")}" autocapitalize="none">${roleSel("staff")}<input class="inp" data-f="pw" type="password" placeholder="${t("uPw")}"></div>
+    <button class="btn bg-btn" onclick="saveUser()">${t("addUser")}</button></div>`);
+}
+function readLogo(el){
+  const f=el.files[0];if(!f)return;const img=new Image();img.onload=()=>{const k=Math.min(1,256/Math.max(img.width,img.height)),c=document.createElement("canvas");
+    c.width=img.width*k;c.height=img.height*k;c.getContext("2d").drawImage(img,0,0,c.width,c.height);S.logo=c.toDataURL("image/png");const p=$("#s_logo");p.src=S.logo;p.classList.remove("hidden")};
+  img.src=URL.createObjectURL(f);
+}
+async function saveBrand(){
+  S.pub=await api("PUT","/api/settings",{hort_name:$("#s_name").value.trim(),logo:S.logo,theme:S.theme,language:$("#s_lang").value,simple_mode:$("#s_simple").checked});
+  S.pub.configured=true;brand();
+}
+async function refetch(){[S.statuses,S.types]=await Promise.all([api("GET","/api/statuses"),api("GET","/api/appointment-types")])}
+async function saveStatus(id,makeDef){const b="st-"+id;await api("PUT","/api/statuses/"+id,{label:rv(b,"label"),icon:rv(b,"icon"),color_code:rv(b,"color"),is_default:makeDef||S.statuses.find(x=>x.id===id).is_default});await refetch()}
+async function saveType(id){const b="ty-"+id;await api("PUT","/api/appointment-types/"+id,{name:rv(b,"name"),color:rv(b,"color"),default_lead_minutes:+rv(b,"lead")});await refetch()}
+async function addRow(kind,body){await api("POST","/api/"+kind,body);await refetch();openSettings()}
+async function delRow(kind,id){if(!confirm(t("confDel")))return;await api("DELETE",`/api/${kind}/${id}`);await refetch();openSettings()}
+async function saveUser(id){
+  const b=id?"us-"+id:"us-new",pw=rv(b,"pw"),body={name:rv(b,"name"),username:rv(b,"username"),role:rv(b,"role"),password:pw||null};
+  await api(id?"PUT":"POST","/api/users"+(id?"/"+id:""),body);openSettings();
+}
+async function delUser(id){if(confirm(t("confDel"))){await api("DELETE","/api/users/"+id);openSettings()}}
+
+setInterval(()=>{$("#clock").textContent=new Date().toLocaleString(LOC(),{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"})},1000);
+setInterval(()=>{if(S.me&&$("#panel").classList.contains("hidden")&&!["INPUT","SELECT"].includes(document.activeElement?.tagName))load()},20000);
+boot();
+</script>
+</body>
+</html>
