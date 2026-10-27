@@ -20,6 +20,19 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 BASE = Path(__file__).parent
 
+try:
+    from zoneinfo import ZoneInfo
+    TZ = ZoneInfo(os.environ.get("HORT_TZ", "Europe/Zurich"))
+except Exception:  # tz database missing -> fall back to UTC+1
+    from datetime import timezone
+    TZ = timezone(timedelta(hours=1))
+
+
+def local_now():
+    """Local Hort time (the server itself runs in UTC)."""
+    return datetime.now(TZ).replace(tzinfo=None)
+
+
 DB_URL = os.environ.get("DATABASE_URL", "").strip()
 for _prefix in ("postgres://", "postgresql://"):  # newer SQLAlchemy defaults to "psycopg" (v3), so name psycopg2 explicitly
     if DB_URL.startswith(_prefix):
@@ -80,7 +93,7 @@ class AttendanceLog(Base):
     id = Column(Integer, primary_key=True)
     child_id = Column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=False)
     status_id = Column(Integer, ForeignKey("status_definitions.id"), nullable=True)  # null = note only
-    timestamp = Column(DateTime, default=datetime.now)
+    timestamp = Column(DateTime, default=local_now)
     note = Column(String, nullable=True)
 
 
@@ -545,7 +558,7 @@ def log_attendance(body: AttendanceIn, db: Session = Depends(get_db)):
     if body.status_id is not None:
         get_or_404(db, StatusDefinition, body.status_id)
     entry = AttendanceLog(child_id=body.child_id, status_id=body.status_id,
-                          note=(body.note or "").strip() or None, timestamp=datetime.now())
+                          note=(body.note or "").strip() or None, timestamp=local_now())
     db.add(entry)
     db.commit()
     return d(entry)
@@ -554,7 +567,7 @@ def log_attendance(body: AttendanceIn, db: Session = Depends(get_db)):
 @app.get("/api/logs")
 def list_logs(child_id: Optional[int] = None, db: Session = Depends(get_db)):
     """Today's log feed, newest first."""
-    start = datetime.combine(datetime.now().date(), time.min)
+    start = datetime.combine(local_now().date(), time.min)
     q = db.query(AttendanceLog).filter(AttendanceLog.timestamp >= start)
     if child_id:
         q = q.filter_by(child_id=child_id)
@@ -603,7 +616,7 @@ def delete_weekly_plan(pid: int, db: Session = Depends(get_db)):
 @app.get("/api/roster")
 def roster(now: Optional[str] = None, db: Session = Depends(get_db)):
     """Today's roster. Optional ?now=HH:MM simulates the clock (handy for demos)."""
-    n = datetime.now()
+    n = local_now()
     cur = minutes(now) if now else n.hour * 60 + n.minute
     today = n.date()
     default = db.query(StatusDefinition).filter_by(is_default=True).first()
@@ -670,7 +683,7 @@ def seed(lang="de", demo=True):
         children = [Child(first_name=f, last_name=l, group_name=gr, custom_fields=cf) for f, l, gr, cf in kids]
         db.add_all(children)
         db.flush()
-        n = datetime.now()
+        n = local_now()
         wd, base = n.weekday(), n.hour * 60 + n.minute
 
         def hhmm(m):
@@ -724,7 +737,7 @@ def install_upgrades():
         child_id = Column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=False)
         day = Column(String, nullable=False)  # YYYY-MM-DD, so the list resets every day
         meal = Column(String, nullable=False)  # lunch | zvieri
-        timestamp = Column(DateTime, default=datetime.now)
+        timestamp = Column(DateTime, default=local_now)
         __table_args__ = (UniqueConstraint("child_id", "day", "meal"),)
 
     class MealIn(BaseModel):
@@ -743,13 +756,13 @@ def install_upgrades():
     def meals_today(db=Depends(get_db)):
         """{child_id: {"lunch": true, "zvieri": true}} for today."""
         out = {}
-        for m in db.query(MealLog).filter_by(day=date.today().isoformat()):
+        for m in db.query(MealLog).filter_by(day=local_now().date().isoformat()):
             out.setdefault(m.child_id, {})[m.meal] = True
         return out
 
     @app.post("/api/meals")
     def set_meals(body: MealIn, db=Depends(get_db)):
-        today = date.today().isoformat()
+        today = local_now().date().isoformat()
         ids = {i for (i,) in db.query(Child.id).filter(Child.id.in_(body.child_ids))}
         q = db.query(MealLog).filter(MealLog.day == today, MealLog.meal == body.meal,
                                      MealLog.child_id.in_(ids))
@@ -766,7 +779,7 @@ def install_upgrades():
         if not db.get(StatusDefinition, body.status_id):
             raise HTTPException(404, "Status not found.")
         ids = [i for (i,) in db.query(Child.id).filter(Child.id.in_(body.child_ids))]
-        now = datetime.now()
+        now = local_now()
         db.add_all(AttendanceLog(child_id=i, status_id=body.status_id, timestamp=now) for i in ids)
         db.commit()
         return {"updated": len(ids)}
@@ -819,7 +832,7 @@ def install_upgrades():
     with engine.begin() as c:
         c.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_att_child_ts ON attendance_logs (child_id, timestamp)")
         c.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_appt_child ON appointments (child_id)")
-        cut = (date.today() - timedelta(days=30)).isoformat()
+        cut = (local_now().date() - timedelta(days=30)).isoformat()
         c.execute(text("DELETE FROM meal_logs WHERE day < :cut"), {"cut": cut})
 
 
