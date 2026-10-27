@@ -54,12 +54,24 @@ textarea{margin:8px 0}
 .auth{max-width:360px;margin:12vh auto 0;display:grid;gap:10px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,80px);background:var(--tx);color:var(--bg);padding:10px 18px;border-radius:99px;transition:transform .25s;z-index:9}
 #toast.show{transform:translate(-50%,0)}
+html[data-theme=wald]{--ac:#2f7d4f}html[data-theme=himmel]{--ac:#0f6b8a}html[data-theme=sonne]{--ac:#a8680a}html[data-theme=beere]{--ac:#a23b72}html[data-theme=kontrast]{--ac:#000;--ln:#000;--tx:#000;--bg:#fff;--card:#fff;--mu:#222}
+@media(prefers-color-scheme:dark){html[data-theme=wald]{--ac:#5fbf84}html[data-theme=himmel]{--ac:#5cc3e4}html[data-theme=sonne]{--ac:#f5b942}html[data-theme=beere]{--ac:#e07bb0}html[data-theme=kontrast]{--ac:#fff;--ln:#fff;--tx:#fff;--bg:#000;--card:#000;--mu:#ddd}}
+html.simple body{font-size:21px}html.simple .mu{display:none}html.simple .chip,html.simple .row select{min-height:44px}
+#tabs{overflow-x:auto}#tabs button{flex:1 0 auto;padding:10px 12px;white-space:nowrap}
+.pri,#tabs button.on{color:var(--bg)}
+.card select{padding:9px;border:1px solid var(--ln);border-radius:8px;background:var(--bg)}
+.card input[type=radio],.card input[type=color],.card input[type=file]{width:auto;padding:0;border:0;background:none}
+.row{flex-wrap:wrap}.row input:not([type=checkbox]):not([type=radio]):not([type=color]){flex:1;width:auto;min-width:90px}
+.form textarea{grid-column:1/-1}
+dialog.card{margin:auto;width:min(640px,94vw);max-height:90vh;overflow:auto;border:0;color:var(--tx)}
+dialog::backdrop{background:#0008}
+.dh{display:flex;align-items:center;gap:8px;margin-bottom:8px}h4{margin:14px 0 6px}
 </style></head><body>
-<div id="app"></div><div id="toast"></div>
+<div id="app"></div><dialog id="dlg" class="card"></dialog><div id="toast"></div>
 <script>
-const T={de:{roster:'Übersicht',meals:'Essen',manage:'Kinder',search:'Kind suchen…',all:'Alle',att:'Bald im Termin',in:'in',min:'Min.',inAppt:'im Termin',sel:'gewählt',clear:'Aufheben',selGrp:'Gruppe wählen',here:'anwesend',lunch:'Mittagessen',zvieri:'Zvieri',open:'Noch offen',onlyOpen:'Nur offene',onlyHere:'Nur Anwesende',allDone:'Alle haben gegessen 🎉',allTick:'Alle ✓',add:'Kind hinzufügen',first:'Vorname',last:'Nachname',group:'Gruppe',allergies:'Allergien',imp:'CSV importieren',impHint:'Spalten: vorname, nachname, gruppe. Weitere Spalten werden als Info gespeichert.',logout:'Abmelden',login:'Anmelden',user:'Benutzername',pw:'Passwort',setup:'Hort einrichten',hname:'Name des Horts',yname:'Dein Name',demo:'Beispieldaten laden',none:'Keine Kinder gefunden.',del:'Kind wirklich löschen?',added:'neu',skipped:'übersprungen',ok:'Gespeichert ✓',err:'Eingabe ungültig',backup:'Backup herunterladen'},
-en:{roster:'Overview',meals:'Meals',manage:'Children',search:'Find child…',all:'All',att:'Appointments soon',in:'in',min:'min',inAppt:'at appointment',sel:'selected',clear:'Clear',selGrp:'Select group',here:'present',lunch:'Lunch',zvieri:'Afternoon snack',open:'Still missing',onlyOpen:'Only missing',onlyHere:'Only present',allDone:'Everyone has eaten 🎉',allTick:'All ✓',add:'Add child',first:'First name',last:'Last name',group:'Group',allergies:'Allergies',imp:'Import CSV',impHint:'Columns: first name, last name, group. Other columns are kept as info.',logout:'Log out',login:'Log in',user:'Username',pw:'Password',setup:'Set up Hort',hname:'Hort name',yname:'Your name',demo:'Load sample data',none:'No children found.',del:'Really delete this child?',added:'new',skipped:'skipped',ok:'Saved ✓',err:'Invalid input',backup:'Download backup'}};
-let L='de',tok=localStorage.getItem('hm_tok'),S={},kids=[],sts=[],meals={},tab='roster',q='',grp='',stf='',sel=new Set(),meal='lunch',onlyOpen=false,onlyHere=false,col=new Set();
+const T={de:{roster:'Übersicht',meals:'Essen',manage:'Kinder',search:'Kind suchen…',all:'Alle',att:'Bald im Termin',in:'in',min:'Min.',inAppt:'im Termin',sel:'gewählt',clear:'Aufheben',selGrp:'Gruppe wählen',here:'anwesend',lunch:'Mittagessen',zvieri:'Zvieri',open:'Noch offen',onlyOpen:'Nur offene',onlyHere:'Nur Anwesende',allDone:'Alle haben gegessen 🎉',allTick:'Alle ✓',add:'Kind hinzufügen',first:'Vorname',last:'Nachname',group:'Gruppe',allergies:'Allergien',imp:'CSV importieren',impHint:'Spalten: vorname, nachname, gruppe. Weitere Spalten werden als Info gespeichert.',logout:'Abmelden',login:'Anmelden',user:'Benutzername',pw:'Passwort',setup:'Hort einrichten',hname:'Name des Horts',yname:'Dein Name',demo:'Beispieldaten laden',none:'Keine Kinder gefunden.',del:'Kind wirklich löschen?',added:'neu',skipped:'übersprungen',ok:'Gespeichert ✓',err:'Eingabe ungültig',backup:'Backup herunterladen',plan:'Wochenplan',log:'Protokoll',settings:'Einstellungen',save:'Speichern',title:'Titel',prog:'Programm',note:'Notiz',appts:'Termine',today:'Heute',recur:'Jede Woche',info:'Infos (eine Zeile pro Eintrag, z. B. Allergien: Nüsse)',hort:'Hort',theme:'Farbe',simple:'Einfacher Modus (grosse Schrift)',logo:'Logo',users:'Konten',manager:'Leitung',staff:'Mitarbeitende',pwNew:'Neues Passwort',statuses:'Status',types:'Terminarten',name:'Name',sure:'Wirklich löschen?'},
+en:{roster:'Overview',meals:'Meals',manage:'Children',search:'Find child…',all:'All',att:'Appointments soon',in:'in',min:'min',inAppt:'at appointment',sel:'selected',clear:'Clear',selGrp:'Select group',here:'present',lunch:'Lunch',zvieri:'Afternoon snack',open:'Still missing',onlyOpen:'Only missing',onlyHere:'Only present',allDone:'Everyone has eaten 🎉',allTick:'All ✓',add:'Add child',first:'First name',last:'Last name',group:'Group',allergies:'Allergies',imp:'Import CSV',impHint:'Columns: first name, last name, group. Other columns are kept as info.',logout:'Log out',login:'Log in',user:'Username',pw:'Password',setup:'Set up Hort',hname:'Hort name',yname:'Your name',demo:'Load sample data',none:'No children found.',del:'Really delete this child?',added:'new',skipped:'skipped',ok:'Saved ✓',err:'Invalid input',backup:'Download backup',plan:'Weekly plan',log:'Log',settings:'Settings',save:'Save',title:'Title',prog:'Programme',note:'Note',appts:'Appointments',today:'Today',recur:'Every week',info:'Info (one per line, e.g. Allergies: nuts)',hort:'Hort',theme:'Colour',simple:'Simple mode (large text)',logo:'Logo',users:'Accounts',manager:'Manager',staff:'Staff',pwNew:'New password',statuses:'Statuses',types:'Appointment types',name:'Name',sure:'Really delete?'}};
+let L='de',tok=localStorage.getItem('hm_tok'),S={},kids=[],sts=[],meals={},tab='roster',q='',grp='',stf='',sel=new Set(),meal='lunch',onlyOpen=false,onlyHere=false,col=new Set(),me={},types=[],users=[],plan=[],logs=[],cur=0;
 const t=k=>T[L][k]||k,$=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const e=$('#toast');e.textContent=m;e.className='show';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2500)}
@@ -71,7 +83,7 @@ async function api(p,m='GET',b){
  return j}
 async function logout(){try{await api('logout','POST')}catch{}tok=null;localStorage.removeItem('hm_tok');boot()}
 async function load(){
- [kids,sts,meals]=await Promise.all([api('roster'),api('statuses'),api('meals')]);
+ [kids,sts,meals,plan,logs]=await Promise.all([api('roster'),api('statuses'),api('meals'),api('weekly-plan'),api('logs')]);
  kids.sort((a,b)=>(a.group_name||'').localeCompare(b.group_name||'')||a.first_name.localeCompare(b.first_name))}
 const G=k=>k.group_name||'–';
 const cf=(k,re)=>{for(const[a,b]of Object.entries(k.custom_fields||{}))if(re.test(a)&&b)return b;return ''};
@@ -90,16 +102,16 @@ function authView(su){
    tok=r.token;localStorage.setItem('hm_tok',tok);boot()}catch(err){toast(err.message)}}}
 
 function shell(){
- $('#app').innerHTML=`<div class="top"><header><b>${esc(S.hort_name)}</b><span class="sp"></span><button class="chip" data-logout>${t('logout')}</button></header><div id="tabs"></div><input id="q" type="search" placeholder="${t('search')}"><div id="chips"></div></div><div id="main"></div>`;
+ $('#app').innerHTML=`<div class="top"><header>${S.logo?`<img src="${esc(S.logo)}" alt="" style="height:30px;border-radius:6px">`:''}<b>${esc(S.hort_name)}</b><span class="sp"></span><button class="chip" data-logout>${t('logout')}</button></header><div id="tabs"></div><input id="q" type="search" placeholder="${t('search')}"><div id="chips"></div></div><div id="main"></div>`;
  $('#q').oninput=e=>{q=e.target.value.trim().toLowerCase();draw()}}
 
 function draw(){
- $('#tabs').innerHTML=['roster','meals','manage'].map(x=>`<button class="${tab==x?'on':''}" data-tab="${x}">${t(x)}</button>`).join('');
+ $('#tabs').innerHTML=tabList().map(x=>`<button class="${tab==x?'on':''}" data-tab="${x}">${t(x)}</button>`).join('');
  const inG=kids.filter(k=>!grp||G(k)===grp);
  $('#chips').innerHTML=`<button class="chip ${grp?'':'on'}" data-grp="">${t('all')} ${kids.length}</button>`+groups().map(g=>`<button class="chip ${grp==g?'on':''}" data-grp="${esc(g)}">${esc(g)} ${kids.filter(k=>G(k)==g).length}</button>`).join('')+(tab=='roster'?sts.map(s=>`<button class="chip ${stf==s.id?'on':''}" data-st="${s.id}" style="--c:${esc(s.color_code)}">${esc(s.icon)} ${esc(s.label)} ${inG.filter(k=>k.status&&k.status.id==s.id).length}</button>`).join(''):'');
- $('#main').innerHTML={roster:vRoster,meals:vMeals,manage:vManage}[tab]()}
+ $('#main').innerHTML={roster:vRoster,meals:vMeals,manage:vManage,plan:vPlan,log:vLog,settings:vSettings}[tab]();const flt=['roster','meals','manage'].includes(tab);$('#chips').style.display=$('#q').style.display=flt?'':'none'}
 
-const row=k=>`<div class="row"><input type="checkbox" data-sel="${k.id}" ${sel.has(k.id)?'checked':''} aria-label="${esc(k.first_name)}"><div class="nm"><b>${esc(k.first_name)} ${esc(k.last_name)}</b>${badges(k)}${k.last_note?`<div class="mu">📝 ${esc(k.last_note.note)}</div>`:''}</div><select data-set="${k.id}" style="border-color:${k.status?esc(k.status.color_code):'var(--ln)'}">${sts.map(s=>`<option value="${s.id}" ${k.status&&k.status.id==s.id?'selected':''}>${esc(s.icon)} ${esc(s.label)}</option>`).join('')}</select></div>`;
+const row=k=>`<div class="row"><input type="checkbox" data-sel="${k.id}" ${sel.has(k.id)?'checked':''} aria-label="${esc(k.first_name)}"><div class="nm" data-open="${k.id}"><b>${esc(k.first_name)} ${esc(k.last_name)}</b>${badges(k)}${k.last_note?`<div class="mu">📝 ${esc(k.last_note.note)}</div>`:''}</div><select data-set="${k.id}" style="border-color:${k.status?esc(k.status.color_code):'var(--ln)'}">${sts.map(s=>`<option value="${s.id}" ${k.status&&k.status.id==s.id?'selected':''}>${esc(s.icon)} ${esc(s.label)}</option>`).join('')}</select></div>`;
 
 function vRoster(){
  const att=kids.flatMap(k=>k.appointments.filter(a=>a.state=='upcoming'||a.state=='away').map(a=>({k,a}))).sort((x,y)=>x.a.minutes_until-y.a.minutes_until);
@@ -124,7 +136,7 @@ function vManage(){
  return `<div class="card"><b>${t('add')}</b><div class="form"><input id="nf" placeholder="${t('first')}"><input id="nl" placeholder="${t('last')}"><input id="ng" list="gl" placeholder="${t('group')}"><datalist id="gl">${groups().map(g=>`<option value="${esc(g)}">`).join('')}</datalist><input id="na" placeholder="${t('allergies')}"><button class="pri" data-add>${t('add')}</button></div></div>
  <div class="card"><b>${t('imp')}</b><div class="mu">${t('impHint')}</div><input type="file" id="cf" accept=".csv,.txt"><textarea id="ct" rows="4" placeholder="vorname;nachname;gruppe;Allergien"></textarea><button class="pri" data-imp>${t('imp')}</button></div>
  <div class="card"><button class="pri" data-backup>${t('backup')}</button></div>
- <div class="card">${vis().map(k=>`<div class="row"><div class="nm"><b>${esc(k.first_name)} ${esc(k.last_name)}</b> <span class="mu">${esc(k.group_name)}</span>${badges(k)}</div><button class="chip" data-del="${k.id}" aria-label="delete">🗑</button></div>`).join('')||`<span class="mu">${t('none')}</span>`}</div>`}
+ <div class="card">${vis().map(k=>`<div class="row"><div class="nm" data-open="${k.id}"><b>${esc(k.first_name)} ${esc(k.last_name)}</b> <span class="mu">${esc(k.group_name)}</span>${badges(k)}</div><button class="chip" data-del="${k.id}" aria-label="delete">🗑</button></div>`).join('')||`<span class="mu">${t('none')}</span>`}</div>`}
 
 async function backup(){
  const r=await fetch('/api/backup',{headers:{Authorization:'Bearer '+tok}});
@@ -136,9 +148,10 @@ async function setMeal(ids,m,on){
  try{await api('meals','POST',{child_ids:ids,meal:m,ate:on})}catch(e){toast(e.message);await load();draw()}}
 
 document.addEventListener('click',async e=>{
+ const o=e.target.closest('[data-open]');if(o&&!e.target.closest('button,select,input')){openChild(+o.dataset.open).catch(x=>toast(x&&x.message||''));return}
  const b=e.target.closest('button');if(!b)return;const d=b.dataset;
  try{
-  if(d.tab){tab=d.tab;draw()}
+  if(d.tab){tab=d.tab;if(tab=='settings')await loadAdmin();draw()}
   else if('grp' in d){grp=d.grp;draw()}
   else if(d.st){stf=stf==d.st?'':+d.st;draw()}
   else if(d.bulk){await api('attendance/bulk','POST',{child_ids:[...sel],status_id:+d.bulk});sel.clear();await load();draw();toast(t('ok'))}
@@ -150,6 +163,14 @@ document.addEventListener('click',async e=>{
   else if('add' in d){const f=id=>$('#'+id).value.trim();if(!f('nf')||!f('nl'))return toast(t('err'));await api('children','POST',{first_name:f('nf'),last_name:f('nl'),group_name:f('ng'),custom_fields:f('na')?{[L=='de'?'Allergien':'Allergies']:f('na')}:{}});await load();draw();toast(t('ok'))}
   else if('imp' in d){const r=await api('children/import','POST',{csv_text:$('#ct').value});await load();draw();toast(`${r.added} ${t('added')}, ${r.skipped} ${t('skipped')}`)}
   else if(d.del){if(confirm(t('del'))){await api('children/'+d.del,'DELETE');sel.delete(+d.del);await load();draw()}}
+  else if('close' in d)$('#dlg').close();
+  else if('savekid' in d){const f=fields(b.closest('[data-box]'));await api('children/'+cur,'PUT',{first_name:f.first_name,last_name:f.last_name,group_name:f.group_name,custom_fields:parseInfo(f.info)});await load();draw();openChild(cur);toast(t('ok'))}
+  else if('note' in d){const v=$('#nn').value.trim();if(!v)return;await api('attendance','POST',{child_id:cur,note:v});await load();draw();openChild(cur)}
+  else if('addappt' in d){const f=fields(b.closest('[data-box]')),rc=f.is_recurring;await api('appointments','POST',{child_id:cur,title:f.title,category:f.category,is_recurring:rc,day_of_week:rc?f.day_of_week:null,date:rc?null:(f.date||null),start_time:f.start_time,duration_minutes:f.duration_minutes||45,alert_lead_minutes:f.alert_lead_minutes});await load();draw();openChild(cur);toast(t('ok'))}
+  else if(d.mk){await api(d.mk,'POST',fields(b.closest('[data-box]')));await refresh();toast(t('ok'))}
+  else if(d.rm){if(confirm(t('sure'))){await api(d.rm,'DELETE');await refresh();if($('#dlg').open)openChild(cur)}}
+  else if(d.pw){const p=prompt(t('pwNew'));if(p){await api('users/'+d.pw,'PUT',{...fields(b.closest('[data-ep]')),password:p});toast(t('ok'))}}
+  else if('savesettings' in d)await saveSettings(b.closest('[data-box]'));
   else if('backup' in d)await backup();
   else if('logout' in d)logout();
  }catch(err){toast(err&&err.message||'')}});
@@ -157,24 +178,69 @@ document.addEventListener('click',async e=>{
 document.addEventListener('change',async e=>{
  const el=e.target,d=el.dataset;
  try{
-  if(d.sel){el.checked?sel.add(+d.sel):sel.delete(+d.sel);draw()}
+  if(el.name&&el.closest('[data-ep]'))await rowSave(el);
+  else if(d.sel){el.checked?sel.add(+d.sel):sel.delete(+d.sel);draw()}
   else if(d.set){await api('attendance','POST',{child_id:+d.set,status_id:+el.value});await load();draw()}
   else if('oh' in d){onlyHere=el.checked;draw()}
   else if('oo' in d){onlyOpen=el.checked;draw()}
+  else if(el.id=='lg'){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{if(r.result.length>390000)return toast('Logo < 280 KB');pendingLogo=r.result;toast(t('ok'))};r.readAsDataURL(f)}
   else if(el.id=='cf'){const f=el.files[0];if(f)$('#ct').value=await f.text()}
  }catch(err){toast(err&&err.message||'')}});
 
 document.addEventListener('toggle',e=>{const g=e.target.dataset&&e.target.dataset.g;if(g!==undefined)e.target.open?col.delete(g):col.add(g)},true);
 
+const DAYS={de:['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'],en:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']},THEMES=['wald','himmel','sonne','beere','kontrast'];
+let pendingLogo=null;
+const isMgr=()=>me.role=='manager',tabList=()=>['roster','meals','plan','log','manage',...(isMgr()?['settings']:[])];
+function applyS(){document.documentElement.dataset.theme=S.theme||'wald';document.documentElement.classList.toggle('simple',!!S.simple_mode)}
+const fields=box=>{const o={};box.querySelectorAll('[name]').forEach(i=>o[i.name]=(i.type=='checkbox'||i.type=='radio')?i.checked:(i.type=='number'||'num' in i.dataset)?+i.value:i.value);return o};
+const parseInfo=s=>Object.fromEntries((s||'').split('\n').map(l=>l.split(/:(.*)/s).map(x=>x.trim())).filter(a=>a[0]&&a[1]));
+const infoText=k=>Object.entries(k.custom_fields||{}).map(([a,b])=>a+': '+b).join('\n');
+async function loadAdmin(){[types,users]=await Promise.all([api('appointment-types'),api('users')])}
+async function refresh(){await load();if(tab=='settings')await loadAdmin();draw()}
+async function rowSave(el){const row=el.closest('[data-ep]');try{await api(row.dataset.ep+'/'+row.dataset.id,'PUT',fields(row));toast(t('ok'))}catch(e){toast(e.message)}await refresh()}
+async function saveSettings(box){const f=fields(box);
+ S=await api('settings','PUT',{hort_name:f.hort_name,language:f.language,theme:f.theme,simple_mode:f.simple_mode,logo:pendingLogo??S.logo??''});
+ S.configured=true;pendingLogo=null;L=S.language;document.documentElement.lang=L;document.title=S.hort_name;applyS();shell();draw();toast(t('ok'))}
+
+function vPlan(){
+ const td=(new Date().getDay()+6)%7;
+ const form=isMgr()?`<div class="card" data-box><b>${t('add')}</b><div class="form"><select name="day_of_week" data-num>${DAYS[L].map((x,i)=>`<option value="${i}" ${i==td?'selected':''}>${x}</option>`).join('')}</select><select name="kind"><option value="program">${t('prog')}</option><option value="lunch">${t('lunch')}</option></select><input name="title" placeholder="${t('title')}"><input name="start_time" type="time"><input name="end_time" type="time"><input name="notes" placeholder="${t('note')}"><button class="pri" data-mk="weekly-plan">${t('add')}</button></div></div>`:'';
+ return form+DAYS[L].map((n,i)=>{const it=plan.filter(p=>p.day_of_week==i).sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));if(!it.length&&i>4)return'';
+  return `<div class="card" ${i==td?'style="border:2px solid var(--ac)"':''}><b>${n}</b>${it.map(p=>`<div class="li">${p.kind=='lunch'?'🍽':'🎒'} <b>${esc(p.title)}</b> <span class="mu">${p.start_time}${p.end_time?'–'+p.end_time:''} ${esc(p.notes)}</span>${isMgr()?` <button class="chip" data-rm="weekly-plan/${p.id}">🗑</button>`:''}</div>`).join('')||'<div class="mu">–</div>'}</div>`}).join('')}
+
+const vLog=()=>logs.length?`<div class="card">${logs.map(l=>`<div class="li"><span class="mu">${l.timestamp.slice(11,16)}</span> <b>${esc(l.child_name)}</b> ${l.status?esc(l.status.icon)+' '+esc(l.status.label):''} ${l.note?'📝 '+esc(l.note):''}</div>`).join('')}</div>`:`<p class="mu">${t('none')}</p>`;
+
+function vSettings(){
+ const ro=(ep,id,a,x)=>`<div class="row" data-ep="${ep}" data-id="${id}">${a}${x}</div>`;
+ const sel=(n,v,o)=>`<select name="${n}">${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`;
+ const roles=[['manager',t('manager')],['staff',t('staff')]];
+ return `<div class="card" data-box><b>${t('hort')}</b><div class="form"><input name="hort_name" value="${esc(S.hort_name)}">${sel('language',L,[['de','Deutsch'],['en','English']])}${sel('theme',S.theme||'wald',THEMES.map(x=>[x,x[0].toUpperCase()+x.slice(1)]))}<label><input type="checkbox" name="simple_mode" ${S.simple_mode?'checked':''}> ${t('simple')}</label><label>${t('logo')} <input type="file" id="lg" accept="image/*"></label><button class="pri" data-savesettings>${t('save')}</button></div></div>
+ <div class="card"><b>${t('users')}</b>${users.map(u=>ro('users',u.id,`<input name="name" value="${esc(u.name)}"><input name="username" value="${esc(u.username)}">${sel('role',u.role,roles)}`,`<button class="chip" data-pw="${u.id}">🔑</button><button class="chip" data-rm="users/${u.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input name="username" placeholder="${t('user')}"><input name="password" type="password" placeholder="${t('pw')}">${sel('role','staff',roles)}<button class="pri" data-mk="users">${t('add')}</button></div></div>
+ <div class="card"><b>${t('statuses')}</b>${sts.map(s=>ro('statuses',s.id,`<input type="radio" name="is_default" ${s.is_default?'checked':''}><input name="icon" value="${esc(s.icon)}" style="max-width:60px"><input name="label" value="${esc(s.label)}"><input type="color" name="color_code" value="${esc(s.color_code)}">`,s.is_default?'':`<button class="chip" data-rm="statuses/${s.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="icon" placeholder="🙂"><input name="label" placeholder="${t('name')}"><input type="color" name="color_code" value="#64748b"><button class="pri" data-mk="statuses">${t('add')}</button></div></div>
+ <div class="card"><b>${t('types')}</b>${types.map(y=>ro('appointment-types',y.id,`<input name="name" value="${esc(y.name)}"><input type="color" name="color" value="${esc(y.color)}"><input type="number" name="default_lead_minutes" value="${y.default_lead_minutes}" min="0" max="240" style="max-width:80px">`,`<button class="chip" data-rm="appointment-types/${y.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input type="color" name="color" value="#6366f1"><input type="number" name="default_lead_minutes" value="15" min="0" max="240"><button class="pri" data-mk="appointment-types">${t('add')}</button></div></div>`}
+
+async function openChild(id){
+ cur=id;const k=kids.find(x=>x.id==id);if(!k)return;
+ const [ap,lg,ty]=await Promise.all([api('appointments?child_id='+id),api('logs?child_id='+id),api('appointment-types')]);types=ty;
+ $('#dlg').innerHTML=`<div class="dh"><b>${esc(k.first_name)} ${esc(k.last_name)}</b>${badges(k)}<span class="sp"></span><button class="chip" data-close>✕</button></div>
+ <div class="form" data-box><input name="first_name" value="${esc(k.first_name)}"><input name="last_name" value="${esc(k.last_name)}"><input name="group_name" list="gl2" value="${esc(k.group_name)}"><datalist id="gl2">${groups().map(g=>`<option value="${esc(g)}">`).join('')}</datalist><textarea name="info" rows="4" placeholder="${t('info')}">${esc(infoText(k))}</textarea><button class="pri" data-savekid>${t('save')}</button></div>
+ <h4>📝 ${t('note')}</h4><div class="form"><input id="nn" placeholder="${t('note')}"><button class="pri" data-note>${t('add')}</button></div>
+ <h4>${t('appts')}</h4>${ap.map(a=>`<div class="row"><div class="nm"><b>${esc(a.title)}</b> <span class="mu">${esc(a.category)} · ${a.is_recurring?DAYS[L][a.day_of_week]:a.date} ${a.start_time} · ${a.duration_minutes} min · 🔔 ${a.alert_lead_minutes}</span></div><button class="chip" data-rm="appointments/${a.id}">🗑</button></div>`).join('')}
+ <div class="form" data-box><input name="title" placeholder="${t('title')}"><select name="category">${ty.map(x=>`<option>${esc(x.name)}</option>`).join('')}</select><select name="day_of_week" data-num>${DAYS[L].map((x,i)=>`<option value="${i}">${x}</option>`).join('')}</select><input name="date" type="date"><input name="start_time" type="time"><input name="duration_minutes" type="number" value="45" min="5"><input name="alert_lead_minutes" type="number" value="15" min="0"><label><input type="checkbox" name="is_recurring" checked> ${t('recur')}</label><button class="pri" data-addappt>${t('add')}</button></div>
+ <h4>${t('today')}</h4>${lg.map(l=>`<div class="li"><span class="mu">${l.timestamp.slice(11,16)}</span> ${l.status?esc(l.status.icon)+' '+esc(l.status.label):''} ${l.note?'📝 '+esc(l.note):''}</div>`).join('')||'<span class="mu">–</span>'}`;
+ if(!$('#dlg').open)$('#dlg').showModal()}
+$('#dlg').addEventListener('click',e=>{if(e.target.id=='dlg')e.target.close()});
+
 async function boot(){
- S=await api('public');L=S.language||'de';document.documentElement.lang=L;document.title=S.hort_name;
+ S=await api('public');L=S.language||'de';document.documentElement.lang=L;document.title=S.hort_name;applyS();
  if(!S.configured)return authView(true);
  if(!tok)return authView(false);
- try{await load()}catch{return}
+ try{me=await api('me');await load()}catch{return}
  shell();draw()}
 
 setInterval(async()=>{ // keep several staff devices in sync
  if(!tok||document.hidden||!$('#main')||document.activeElement.tagName=='SELECT')return;
- try{await load();if(tab!='manage')draw()}catch{}},15000);
+ try{await load();if(!['manage','settings'].includes(tab)&&!$('#dlg').open)draw()}catch{}},15000);
 boot();
 </script></body></html>
