@@ -23,10 +23,14 @@ BASE = Path(__file__).parent
 def _make_engine():
     url = (os.environ.get("DATABASE_URL") or "").strip()
     if url:
-        # Render sometimes gives postgres:// — SQLAlchemy needs postgresql://
+        # Normalize scheme: Render may give postgres:// or postgresql://
         if url.startswith("postgres://"):
-            url = "postgresql://" + url[len("postgres://"):]
-        # Render managed Postgres expects SSL; connection string may already include sslmode=
+            url = "postgresql://" + url[len("postgres://") :]
+        # Force psycopg2 driver (we install psycopg2-binary, not psycopg v3)
+        if url.startswith("postgresql://"):
+            url = "postgresql+psycopg2://" + url[len("postgresql://") :]
+        elif url.startswith("postgresql+psycopg://"):
+            url = "postgresql+psycopg2://" + url[len("postgresql+psycopg://") :]
         kwargs = {"pool_pre_ping": True}
         if "sslmode=" not in url and ("render.com" in url or "amazonaws.com" in url):
             kwargs["connect_args"] = {"sslmode": "require"}
