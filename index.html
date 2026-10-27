@@ -56,6 +56,21 @@ textarea{margin:8px 0}
 #toast.show{transform:translate(-50%,0)}
 html[data-theme=wald]{--ac:#2f7d4f}html[data-theme=himmel]{--ac:#0f6b8a}html[data-theme=sonne]{--ac:#a8680a}html[data-theme=beere]{--ac:#a23b72}html[data-theme=kontrast]{--ac:#000;--ln:#000;--tx:#000;--bg:#fff;--card:#fff;--mu:#222}
 @media(prefers-color-scheme:dark){html[data-theme=wald]{--ac:#5fbf84}html[data-theme=himmel]{--ac:#5cc3e4}html[data-theme=sonne]{--ac:#f5b942}html[data-theme=beere]{--ac:#e07bb0}html[data-theme=kontrast]{--ac:#fff;--ln:#fff;--tx:#fff;--bg:#000;--card:#000;--mu:#ddd}}
+html[data-theme=ozean]{--ac:#1d4ed8;--bg:#e8eefb}
+html[data-theme=lavendel]{--ac:#6d4bc3;--bg:#f1edfa}
+html[data-theme=korall]{--ac:#d6493d;--bg:#fbefec}
+html[data-theme=mint]{--ac:#0f8f74;--bg:#e6f6f1}
+html[data-theme=schoggi]{--ac:#8a5a3c;--bg:#f4ede6}
+html[data-theme=bonbon]{--ac:#d6409f;--bg:#fdeef7}
+@media(prefers-color-scheme:dark){
+html[data-theme=ozean]{--ac:#7aa2ff;--bg:#0c1426;--card:#131d36;--ln:#25335a}
+html[data-theme=lavendel]{--ac:#b59cff;--bg:#17132a;--card:#211b3b;--ln:#382f5e}
+html[data-theme=korall]{--ac:#ff8f84;--bg:#1f1412;--card:#2b1c19;--ln:#4a2e29}
+html[data-theme=mint]{--ac:#5be0bd;--bg:#0d1b18;--card:#14282a;--ln:#244a45}
+html[data-theme=schoggi]{--ac:#d9a47c;--bg:#1a1410;--card:#261d17;--ln:#43342a}
+html[data-theme=bonbon]{--ac:#ff7ccd;--bg:#1e1019;--card:#2c1726;--ln:#4b2a41}}
+html[data-theme=nacht]{--ac:#79c0ff;--bg:#0b0f14;--card:#131a22;--tx:#e6edf3;--mu:#8b9bab;--ln:#26323f;--bad:#ff8a80;--warn:#ffc266;--ok:#6fdc97;--okbg:#17372a;color-scheme:dark}
+.chip.on:not([style*="--c"]){color:var(--bg)}
 html.simple body{font-size:21px}html.simple .mu{display:none}html.simple .chip,html.simple .row select{min-height:44px}
 #tabs{overflow-x:auto}#tabs button{flex:1 0 auto;padding:10px 12px;white-space:nowrap}
 .pri,#tabs button.on{color:var(--bg)}
@@ -151,7 +166,7 @@ document.addEventListener('click',async e=>{
  const o=e.target.closest('[data-open]');if(o&&!e.target.closest('button,select,input')){openChild(+o.dataset.open).catch(x=>toast(x&&x.message||''));return}
  const b=e.target.closest('button');if(!b)return;const d=b.dataset;
  try{
-  if(d.tab){tab=d.tab;if(tab=='settings')await loadAdmin();draw()}
+  if(d.tab){tab=d.tab;applyS();if(tab=='settings')await loadAdmin();draw()}
   else if('grp' in d){grp=d.grp;draw()}
   else if(d.st){stf=stf==d.st?'':+d.st;draw()}
   else if(d.bulk){await api('attendance/bulk','POST',{child_ids:[...sel],status_id:+d.bulk});sel.clear();await load();draw();toast(t('ok'))}
@@ -179,6 +194,7 @@ document.addEventListener('change',async e=>{
  const el=e.target,d=el.dataset;
  try{
   if(el.name&&el.closest('[data-ep]'))await rowSave(el);
+  else if(el.name=='theme'&&el.closest('[data-box]'))document.documentElement.dataset.theme=el.value; // live preview
   else if(d.sel){el.checked?sel.add(+d.sel):sel.delete(+d.sel);draw()}
   else if(d.set){await api('attendance','POST',{child_id:+d.set,status_id:+el.value});await load();draw()}
   else if('oh' in d){onlyHere=el.checked;draw()}
@@ -189,7 +205,7 @@ document.addEventListener('change',async e=>{
 
 document.addEventListener('toggle',e=>{const g=e.target.dataset&&e.target.dataset.g;if(g!==undefined)e.target.open?col.delete(g):col.add(g)},true);
 
-const DAYS={de:['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'],en:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']},THEMES=['wald','himmel','sonne','beere','kontrast'];
+const DAYS={de:['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'],en:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']},THEMES=['wald','himmel','sonne','beere','ozean','lavendel','korall','mint','schoggi','bonbon','nacht','kontrast'],TL={wald:'🌲 Wald',himmel:'☁️ Himmel',sonne:'☀️ Sonne',beere:'🫐 Beere',ozean:'🌊 Ozean',lavendel:'💜 Lavendel',korall:'🪸 Korall',mint:'🍃 Mint',schoggi:'🍫 Schoggi',bonbon:'🍬 Bonbon',nacht:'🌙 Nacht',kontrast:'◐ Kontrast'};
 let pendingLogo=null;
 const isMgr=()=>me.role=='manager',tabList=()=>['roster','meals','plan','log','manage',...(isMgr()?['settings']:[])];
 function applyS(){document.documentElement.dataset.theme=S.theme||'wald';document.documentElement.classList.toggle('simple',!!S.simple_mode)}
@@ -215,7 +231,7 @@ function vSettings(){
  const ro=(ep,id,a,x)=>`<div class="row" data-ep="${ep}" data-id="${id}">${a}${x}</div>`;
  const sel=(n,v,o)=>`<select name="${n}">${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`;
  const roles=[['manager',t('manager')],['staff',t('staff')]];
- return `<div class="card" data-box><b>${t('hort')}</b><div class="form"><input name="hort_name" value="${esc(S.hort_name)}">${sel('language',L,[['de','Deutsch'],['en','English']])}${sel('theme',S.theme||'wald',THEMES.map(x=>[x,x[0].toUpperCase()+x.slice(1)]))}<label><input type="checkbox" name="simple_mode" ${S.simple_mode?'checked':''}> ${t('simple')}</label><label>${t('logo')} <input type="file" id="lg" accept="image/*"></label><button class="pri" data-savesettings>${t('save')}</button></div></div>
+ return `<div class="card" data-box><b>${t('hort')}</b><div class="form"><input name="hort_name" value="${esc(S.hort_name)}">${sel('language',L,[['de','Deutsch'],['en','English']])}${sel('theme',S.theme||'wald',THEMES.map(x=>[x,TL[x]]))}<label><input type="checkbox" name="simple_mode" ${S.simple_mode?'checked':''}> ${t('simple')}</label><label>${t('logo')} <input type="file" id="lg" accept="image/*"></label><button class="pri" data-savesettings>${t('save')}</button></div></div>
  <div class="card"><b>${t('users')}</b>${users.map(u=>ro('users',u.id,`<input name="name" value="${esc(u.name)}"><input name="username" value="${esc(u.username)}">${sel('role',u.role,roles)}`,`<button class="chip" data-pw="${u.id}">🔑</button><button class="chip" data-rm="users/${u.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input name="username" placeholder="${t('user')}"><input name="password" type="password" placeholder="${t('pw')}">${sel('role','staff',roles)}<button class="pri" data-mk="users">${t('add')}</button></div></div>
  <div class="card"><b>${t('statuses')}</b>${sts.map(s=>ro('statuses',s.id,`<input type="radio" name="is_default" ${s.is_default?'checked':''}><input name="icon" value="${esc(s.icon)}" style="max-width:60px"><input name="label" value="${esc(s.label)}"><input type="color" name="color_code" value="${esc(s.color_code)}">`,s.is_default?'':`<button class="chip" data-rm="statuses/${s.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="icon" placeholder="🙂"><input name="label" placeholder="${t('name')}"><input type="color" name="color_code" value="#64748b"><button class="pri" data-mk="statuses">${t('add')}</button></div></div>
  <div class="card"><b>${t('types')}</b>${types.map(y=>ro('appointment-types',y.id,`<input name="name" value="${esc(y.name)}"><input type="color" name="color" value="${esc(y.color)}"><input type="number" name="default_lead_minutes" value="${y.default_lead_minutes}" min="0" max="240" style="max-width:80px">`,`<button class="chip" data-rm="appointment-types/${y.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input type="color" name="color" value="#6366f1"><input type="number" name="default_lead_minutes" value="15" min="0" max="240"><button class="pri" data-mk="appointment-types">${t('add')}</button></div></div>`}
