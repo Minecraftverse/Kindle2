@@ -246,7 +246,7 @@ def user_from(request, db):
 def get_settings(db):
     s = dict(DEFAULTS)
     s.update({r.key: r.value for r in db.query(Setting)})
-    s["feedback_email"] = os.environ.get("FEEDBACK_EMAIL", "")  # shown as a feedback link in the app
+    s["feedback_email"] = os.environ.get("FEEDBACK_EMAIL", "KontaktKindle.CH@gmail.com")  # shown as a feedback link in the app
     s["version"] = "1.0"
     return s
 
