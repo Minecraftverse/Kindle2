@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hort</title>
+<title>Kindle</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -146,7 +146,7 @@ function authScreen(mode,keep){
   const v=id=>keep&&$("#"+id)?$("#"+id).value:"";
   a.innerHTML=`<div class="card rounded-2xl p-6 w-full max-w-md space-y-3 mx-auto my-6">
    <div class="flex items-center gap-3">${S.pub.logo?`<img src="${S.pub.logo}" class="h-12" alt="">`:""}<h1 class="text-2xl font-extrabold mr-auto">${esc(setup?t("setupTitle"):S.pub.hort_name)}</h1><button class="btn" onclick="toggleLang()">${L==="de"?"EN":"DE"}</button></div>
-   ${setup?lab(t("hortName"),inp("a_hort",v("a_hort")))+lab(t("theme"),`<div class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>`)+`<h2 class="font-extrabold pt-2">${t("mgrAcc")}</h2>`+lab(t("uName"),inp("a_name",v("a_name"))):""}
+   ${setup?lab(t("hortName"),inp("a_hort",v("a_hort")||"Kindle"))+lab(t("theme"),`<div class="flex flex-wrap gap-2">${themePicker(S.theme)}</div>`)+`<h2 class="font-extrabold pt-2">${t("mgrAcc")}</h2>`+lab(t("uName"),inp("a_name",v("a_name"))):""}
    ${lab(t("uUser"),inp("a_user",v("a_user"),"","autocomplete=username autocapitalize=none"))}
    ${lab(t("uPw").split(" (")[0],inp("a_pw","","",`type=password autocomplete=current-password onkeydown="if(event.key==='Enter')${setup?'doSetup()':'doLogin()'}"`))}
    ${setup?`<label class="flex items-center gap-2 font-bold"><input id="a_demo" type="checkbox" class="h-6 w-6" ${keep&&$("#a_demo")?.checked?"checked":""}>${t("demo")}</label>`:""}
