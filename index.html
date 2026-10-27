@@ -57,8 +57,8 @@ textarea{margin:8px 0}
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
-const T={de:{roster:'Übersicht',meals:'Essen',manage:'Kinder',search:'Kind suchen…',all:'Alle',att:'Bald im Termin',in:'in',min:'Min.',inAppt:'im Termin',sel:'gewählt',clear:'Aufheben',selGrp:'Gruppe wählen',here:'anwesend',lunch:'Mittagessen',zvieri:'Zvieri',open:'Noch offen',onlyOpen:'Nur offene',onlyHere:'Nur Anwesende',allDone:'Alle haben gegessen 🎉',allTick:'Alle ✓',add:'Kind hinzufügen',first:'Vorname',last:'Nachname',group:'Gruppe',allergies:'Allergien',imp:'CSV importieren',impHint:'Spalten: vorname, nachname, gruppe. Weitere Spalten werden als Info gespeichert.',logout:'Abmelden',login:'Anmelden',user:'Benutzername',pw:'Passwort',setup:'Hort einrichten',hname:'Name des Horts',yname:'Dein Name',demo:'Beispieldaten laden',none:'Keine Kinder gefunden.',del:'Kind wirklich löschen?',added:'neu',skipped:'übersprungen',ok:'Gespeichert ✓',err:'Eingabe ungültig'},
-en:{roster:'Overview',meals:'Meals',manage:'Children',search:'Find child…',all:'All',att:'Appointments soon',in:'in',min:'min',inAppt:'at appointment',sel:'selected',clear:'Clear',selGrp:'Select group',here:'present',lunch:'Lunch',zvieri:'Afternoon snack',open:'Still missing',onlyOpen:'Only missing',onlyHere:'Only present',allDone:'Everyone has eaten 🎉',allTick:'All ✓',add:'Add child',first:'First name',last:'Last name',group:'Group',allergies:'Allergies',imp:'Import CSV',impHint:'Columns: first name, last name, group. Other columns are kept as info.',logout:'Log out',login:'Log in',user:'Username',pw:'Password',setup:'Set up Hort',hname:'Hort name',yname:'Your name',demo:'Load sample data',none:'No children found.',del:'Really delete this child?',added:'new',skipped:'skipped',ok:'Saved ✓',err:'Invalid input'}};
+const T={de:{roster:'Übersicht',meals:'Essen',manage:'Kinder',search:'Kind suchen…',all:'Alle',att:'Bald im Termin',in:'in',min:'Min.',inAppt:'im Termin',sel:'gewählt',clear:'Aufheben',selGrp:'Gruppe wählen',here:'anwesend',lunch:'Mittagessen',zvieri:'Zvieri',open:'Noch offen',onlyOpen:'Nur offene',onlyHere:'Nur Anwesende',allDone:'Alle haben gegessen 🎉',allTick:'Alle ✓',add:'Kind hinzufügen',first:'Vorname',last:'Nachname',group:'Gruppe',allergies:'Allergien',imp:'CSV importieren',impHint:'Spalten: vorname, nachname, gruppe. Weitere Spalten werden als Info gespeichert.',logout:'Abmelden',login:'Anmelden',user:'Benutzername',pw:'Passwort',setup:'Hort einrichten',hname:'Name des Horts',yname:'Dein Name',demo:'Beispieldaten laden',none:'Keine Kinder gefunden.',del:'Kind wirklich löschen?',added:'neu',skipped:'übersprungen',ok:'Gespeichert ✓',err:'Eingabe ungültig',backup:'Backup herunterladen'},
+en:{roster:'Overview',meals:'Meals',manage:'Children',search:'Find child…',all:'All',att:'Appointments soon',in:'in',min:'min',inAppt:'at appointment',sel:'selected',clear:'Clear',selGrp:'Select group',here:'present',lunch:'Lunch',zvieri:'Afternoon snack',open:'Still missing',onlyOpen:'Only missing',onlyHere:'Only present',allDone:'Everyone has eaten 🎉',allTick:'All ✓',add:'Add child',first:'First name',last:'Last name',group:'Group',allergies:'Allergies',imp:'Import CSV',impHint:'Columns: first name, last name, group. Other columns are kept as info.',logout:'Log out',login:'Log in',user:'Username',pw:'Password',setup:'Set up Hort',hname:'Hort name',yname:'Your name',demo:'Load sample data',none:'No children found.',del:'Really delete this child?',added:'new',skipped:'skipped',ok:'Saved ✓',err:'Invalid input',backup:'Download backup'}};
 let L='de',tok=localStorage.getItem('hm_tok'),S={},kids=[],sts=[],meals={},tab='roster',q='',grp='',stf='',sel=new Set(),meal='lunch',onlyOpen=false,onlyHere=false,col=new Set();
 const t=k=>T[L][k]||k,$=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -123,8 +123,14 @@ function vMeals(){
 function vManage(){
  return `<div class="card"><b>${t('add')}</b><div class="form"><input id="nf" placeholder="${t('first')}"><input id="nl" placeholder="${t('last')}"><input id="ng" list="gl" placeholder="${t('group')}"><datalist id="gl">${groups().map(g=>`<option value="${esc(g)}">`).join('')}</datalist><input id="na" placeholder="${t('allergies')}"><button class="pri" data-add>${t('add')}</button></div></div>
  <div class="card"><b>${t('imp')}</b><div class="mu">${t('impHint')}</div><input type="file" id="cf" accept=".csv,.txt"><textarea id="ct" rows="4" placeholder="vorname;nachname;gruppe;Allergien"></textarea><button class="pri" data-imp>${t('imp')}</button></div>
+ <div class="card"><button class="pri" data-backup>${t('backup')}</button></div>
  <div class="card">${vis().map(k=>`<div class="row"><div class="nm"><b>${esc(k.first_name)} ${esc(k.last_name)}</b> <span class="mu">${esc(k.group_name)}</span>${badges(k)}</div><button class="chip" data-del="${k.id}" aria-label="delete">🗑</button></div>`).join('')||`<span class="mu">${t('none')}</span>`}</div>`}
 
+async function backup(){
+ const r=await fetch('/api/backup',{headers:{Authorization:'Bearer '+tok}});
+ if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||t('err'));
+ const u=URL.createObjectURL(await r.blob()),a=document.createElement('a');
+ a.href=u;a.download='hort-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u)}
 async function setMeal(ids,m,on){
  ids.forEach(i=>{meals[i]=meals[i]||{};on?meals[i][m]=true:delete meals[i][m]});draw();
  try{await api('meals','POST',{child_ids:ids,meal:m,ate:on})}catch(e){toast(e.message);await load();draw()}}
@@ -144,6 +150,7 @@ document.addEventListener('click',async e=>{
   else if('add' in d){const f=id=>$('#'+id).value.trim();if(!f('nf')||!f('nl'))return toast(t('err'));await api('children','POST',{first_name:f('nf'),last_name:f('nl'),group_name:f('ng'),custom_fields:f('na')?{[L=='de'?'Allergien':'Allergies']:f('na')}:{}});await load();draw();toast(t('ok'))}
   else if('imp' in d){const r=await api('children/import','POST',{csv_text:$('#ct').value});await load();draw();toast(`${r.added} ${t('added')}, ${r.skipped} ${t('skipped')}`)}
   else if(d.del){if(confirm(t('del'))){await api('children/'+d.del,'DELETE');sel.delete(+d.del);await load();draw()}}
+  else if('backup' in d)await backup();
   else if('logout' in d)logout();
  }catch(err){toast(err&&err.message||'')}});
 
