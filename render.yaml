@@ -1,9 +1,10 @@
-# Optional: for Render.com Blueprint deploy
-# https://render.com/docs/infrastructure-as-code
 services:
   - type: web
     name: hort-manager
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python3 -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: |
+      python3 -m venv venv
+      ./venv/bin/pip install --upgrade pip
+      ./venv/bin/pip install -r requirements.txt
+    startCommand: ./venv/bin/uvicorn main:app --host 0.0.0.0 --port $PORT
     plan: free
