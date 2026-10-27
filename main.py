@@ -21,8 +21,10 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 BASE = Path(__file__).parent
 
 DB_URL = os.environ.get("DATABASE_URL", "").strip()
-if DB_URL.startswith("postgres://"):
-    DB_URL = "postgresql://" + DB_URL[len("postgres://"):]
+for _prefix in ("postgres://", "postgresql://"):  # newer SQLAlchemy defaults to "psycopg" (v3), so name psycopg2 explicitly
+    if DB_URL.startswith(_prefix):
+        DB_URL = "postgresql+psycopg2://" + DB_URL[len(_prefix):]
+        break
 if DB_URL:
     engine = create_engine(DB_URL, pool_pre_ping=True, pool_recycle=300)
 else:  # local / paid-disk fallback: HORT_DB=/var/data/hort.db
