@@ -88,12 +88,14 @@ class Appointment(Base):
     child_id = Column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
     category = Column(String, default="")
-    day_of_week = Column(Integer, nullable=True)  # 0=Monday .. 6=Sunday
-    date = Column(String, nullable=True)  # YYYY-MM-DD
+    day_of_week = Column(Integer, nullable=True)  # 0=Monday .. 6=Sunday (weekly/biweekly)
+    date = Column(String, nullable=True)  # YYYY-MM-DD: one-off date OR biweekly anchor
     start_time = Column(String, nullable=False)
     duration_minutes = Column(Integer, default=45)
-    alert_lead_minutes = Column(Integer, default=15)
-    is_recurring = Column(Boolean, default=True)
+    alert_lead_minutes = Column(Integer, default=15)  # remind this many minutes before
+    # "weekly" | "biweekly" | "once"
+    recurrence = Column(String, default="weekly")
+    is_recurring = Column(Boolean, default=True)  # kept for older rows; prefer recurrence
 
 
 class AttendanceLog(Base):
@@ -320,8 +322,9 @@ class AppointmentIn(BaseModel):
     date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     start_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     duration_minutes: int = Field(45, ge=5, le=600)
-    alert_lead_minutes: int = Field(15, ge=0, le=240)
-    is_recurring: bool = True
+    alert_lead_minutes: int = Field(15, ge=0, le=480)  # up to 8h early reminder
+    recurrence: str = Field("weekly", pattern="^(weekly|biweekly|once)$")
+    is_recurring: bool = True  # derived from recurrence when saving
 
 
 class AttendanceIn(BaseModel):
@@ -704,13 +707,51 @@ def list_appointments(request: Request, db: Session = Depends(get_db)):
     return [d(a) for a in db.query(Appointment).filter_by(hort_id=u.hort_id).order_by(Appointment.start_time)]
 
 
+def _normalize_appt(data: dict) -> dict:
+    rec = data.get("recurrence") or ("weekly" if data.get("is_recurring") else "once")
+    data["recurrence"] = rec
+    data["is_recurring"] = rec in ("weekly", "biweekly")
+    if rec == "once":
+        data["day_of_week"] = None
+    elif data.get("day_of_week") is None and data.get("date"):
+        try:
+            data["day_of_week"] = datetime.strptime(data["date"], "%Y-%m-%d").weekday()
+        except ValueError:
+            pass
+    return data
+
+
+def appointment_hits_day(a, today) -> bool:
+    """True if this appointment occurs on the given date."""
+    rec = getattr(a, "recurrence", None) or ("weekly" if a.is_recurring else "once")
+    if rec == "once":
+        return a.date == today.isoformat()
+    if a.day_of_week is None or a.day_of_week != today.weekday():
+        return False
+    if rec == "weekly":
+        return True
+    # biweekly: even number of weeks since anchor date (or since epoch Monday if no date)
+    if a.date:
+        try:
+            anchor = datetime.strptime(a.date, "%Y-%m-%d").date()
+        except ValueError:
+            return True
+        delta_days = (today - anchor).days
+        if delta_days < 0:
+            return False
+        return (delta_days // 7) % 2 == 0
+    # no anchor → treat as weekly
+    return True
+
+
 @app.post("/api/appointments", status_code=201)
 def create_appointment(body: AppointmentIn, request: Request, db: Session = Depends(get_db)):
     u = require_user(request, db)
     c = get_or_404(db, Child, body.child_id)
     if c.hort_id != u.hort_id:
         raise HTTPException(404, "Not found.")
-    a = Appointment(hort_id=u.hort_id, **body.model_dump())
+    data = _normalize_appt(body.model_dump())
+    a = Appointment(hort_id=u.hort_id, **data)
     db.add(a)
     db.commit()
     return d(a)
@@ -722,7 +763,8 @@ def update_appointment(aid: int, body: AppointmentIn, request: Request, db: Sess
     a = get_or_404(db, Appointment, aid)
     if a.hort_id != u.hort_id:
         raise HTTPException(404, "Not found.")
-    for k, v in body.model_dump().items():
+    data = _normalize_appt(body.model_dump())
+    for k, v in data.items():
         setattr(a, k, v)
     db.commit()
     return d(a)
@@ -923,10 +965,7 @@ def roster(request: Request, now: Optional[str] = None, db: Session = Depends(ge
     types = {t.name: t for t in db.query(AppointmentType).filter_by(hort_id=hid)}
     appts = {}
     for a in db.query(Appointment).filter_by(hort_id=hid):
-        today_hit = (a.is_recurring and a.day_of_week == today.weekday()) or (
-            not a.is_recurring and a.date == today.isoformat()
-        )
-        if not today_hit:
+        if not appointment_hits_day(a, today):
             continue
         s = minutes(a.start_time)
         e = s + (a.duration_minutes or 45)
@@ -1048,6 +1087,16 @@ def seed(hort_id: int, lang="de", demo=True):
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    # lightweight migrations for existing SQLite DBs
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(appointments)").fetchall()} if \
+            conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table' AND name='appointments'").fetchone() else set()
+        if cols and "recurrence" not in cols:
+            conn.exec_driver_sql("ALTER TABLE appointments ADD COLUMN recurrence VARCHAR DEFAULT 'weekly'")
+            conn.exec_driver_sql(
+                "UPDATE appointments SET recurrence = CASE WHEN is_recurring = 1 THEN 'weekly' ELSE 'once' END"
+            )
+            conn.commit()
 
 
 @app.get("/")
