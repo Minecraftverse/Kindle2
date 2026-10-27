@@ -239,8 +239,13 @@ async function boot(){
  try{me=await api('me');await load()}catch{return}
  shell();draw()}
 
+function keepForms(fn){ // background refresh must never wipe a half-filled form
+ const grid=()=>[...document.querySelectorAll('#main [data-box]')].map(b=>[...b.querySelectorAll('input,select,textarea')]);
+ const snap=grid().map(g=>g.map(i=>i.type=='checkbox'||i.type=='radio'?i.checked:i.value));
+ fn();
+ grid().forEach((g,x)=>g.forEach((i,y)=>{const v=snap[x]&&snap[x][y];if(v===undefined||i.type=='file')return;if(i.type=='checkbox'||i.type=='radio')i.checked=v;else i.value=v}))}
 setInterval(async()=>{ // keep several staff devices in sync
- if(!tok||document.hidden||!$('#main')||document.activeElement.tagName=='SELECT')return;
- try{await load();if(!['manage','settings'].includes(tab)&&!$('#dlg').open)draw()}catch{}},15000);
+ if(!tok||document.hidden||!$('#main')||['SELECT','INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+ try{await load();if(!['manage','settings'].includes(tab)&&!$('#dlg').open)keepForms(draw)}catch{}},15000);
 boot();
 </script></body></html>
