@@ -285,7 +285,7 @@ async def auth_middleware(request: Request, call_next):
 class SettingsIn(BaseModel):
     hort_name: str = Field(min_length=1, max_length=60)
     logo: str = Field("", max_length=400_000)
-    theme: str = Field("wald", pattern="^(wald|himmel|sonne|beere|kontrast)$")
+    theme: str = Field("wald", pattern="^(wald|himmel|sonne|beere|ozean|lavendel|korall|mint|schoggi|bonbon|nacht|kontrast)$")
     language: str = Field("de", pattern="^(de|en)$")
     simple_mode: bool = False
 
