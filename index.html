@@ -81,7 +81,7 @@ html.simple body{font-size:21px}html.simple .mu{display:none}html.simple .chip,h
 dialog.card{margin:auto;width:min(640px,94vw);max-height:90vh;overflow:auto;border:0;color:var(--tx)}
 dialog::backdrop{background:#0008}
 .dh{display:flex;align-items:center;gap:8px;margin-bottom:8px}h4{margin:14px 0 6px}
-</style></head><body>
+</style><link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#0f6b8a"></head><body>
 <div id="app"></div><dialog id="dlg" class="card"></dialog><div id="toast"></div>
 <script>
 const T={de:{roster:'Übersicht',meals:'Essen',manage:'Kinder',search:'Kind suchen…',all:'Alle',att:'Bald im Termin',in:'in',min:'Min.',inAppt:'im Termin',sel:'gewählt',clear:'Aufheben',selGrp:'Gruppe wählen',here:'anwesend',lunch:'Mittagessen',zvieri:'Zvieri',open:'Noch offen',onlyOpen:'Nur offene',onlyHere:'Nur Anwesende',allDone:'Alle haben gegessen 🎉',allTick:'Alle ✓',add:'Kind hinzufügen',first:'Vorname',last:'Nachname',group:'Gruppe',allergies:'Allergien',imp:'CSV importieren',impHint:'Spalten: vorname, nachname, gruppe. Weitere Spalten werden als Info gespeichert.',logout:'Abmelden',login:'Anmelden',user:'Benutzername',pw:'Passwort',setup:'Hort einrichten',hname:'Name des Horts',yname:'Dein Name',demo:'Beispieldaten laden',none:'Keine Kinder gefunden.',del:'Kind wirklich löschen?',added:'neu',skipped:'übersprungen',ok:'Gespeichert ✓',err:'Eingabe ungültig',addItem:'Hinzufügen',addPlan:'Programm oder Mittagessen hinzufügen',backup:'Backup herunterladen',plan:'Wochenplan',log:'Protokoll',settings:'Einstellungen',save:'Speichern',title:'Titel',prog:'Programm',note:'Notiz',appts:'Termine',today:'Heute',recur:'Jede Woche',info:'Infos (eine Zeile pro Eintrag, z. B. Allergien: Nüsse)',hort:'Hort',theme:'Farbe',simple:'Einfacher Modus (grosse Schrift)',logo:'Logo',users:'Konten',manager:'Leitung',staff:'Mitarbeitende',pwNew:'Neues Passwort',statuses:'Status',types:'Terminarten',name:'Name',sure:'Wirklich löschen?'},
@@ -111,13 +111,13 @@ const byGroup=l=>l.reduce((o,k)=>((o[G(k)]=o[G(k)]||[]).push(k),o),{});
 const badges=k=>{const a=cf(k,/allerg/i),d=cf(k,/ernähr|dietary/i);return(a?`<span class="b bad">⚠ ${esc(a)}</span>`:'')+(d?`<span class="b warn">${esc(d)}</span>`:'')};
 
 function authView(su){
- $('#app').innerHTML=`<form class="card auth" id="af"><h2>${esc(S.hort_name)}</h2>${su?`<input name="hort_name" placeholder="${t('hname')}" required><input name="name" placeholder="${t('yname')}" required>`:''}<input name="username" placeholder="${t('user')}" required autocomplete="username"><input name="password" type="password" placeholder="${t('pw')}" required minlength="6" autocomplete="current-password">${su?`<select name="language"><option value="de">Deutsch</option><option value="en">English</option></select><label><input type="checkbox" name="demo"> ${t('demo')}</label>`:''}<button class="pri">${su?t('setup'):t('login')}</button></form>`;
+ $('#app').innerHTML=`<form class="card auth" id="af"><h2>${esc(S.hort_name)}</h2>${su?`<input name="hort_name" placeholder="${t('hname')}" required><input name="name" placeholder="${t('yname')}" required>`:''}<input name="username" placeholder="${t('user')}" required autocomplete="username"><input name="password" type="password" placeholder="${t('pw')}" required minlength="8" autocomplete="current-password">${su?`<select name="language"><option value="de">Deutsch</option><option value="en">English</option></select><label><input type="checkbox" name="demo"> ${t('demo')}</label>`:''}<button class="pri">${su?t('setup'):t('login')}</button></form>`;
  $('#af').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);
   try{const r=su?await api('setup','POST',{hort_name:f.get('hort_name'),logo:'',theme:'wald',language:f.get('language'),simple_mode:false,name:f.get('name'),username:f.get('username'),password:f.get('password'),demo:f.has('demo')}):await api('login','POST',{username:f.get('username'),password:f.get('password')});
    tok=r.token;localStorage.setItem('hm_tok',tok);boot()}catch(err){toast(err.message)}}}
 
 function shell(){
- $('#app').innerHTML=`<div class="top"><header>${S.logo?`<img src="${esc(S.logo)}" alt="" style="height:30px;border-radius:6px">`:''}<b>${esc(S.hort_name)}</b><span class="sp"></span><button class="chip" data-logout>${t('logout')}</button></header><div id="tabs"></div><input id="q" type="search" placeholder="${t('search')}"><div id="chips"></div></div><div id="main"></div>`;
+ $('#app').innerHTML=`<div class="top"><header>${S.logo?`<img src="${esc(S.logo)}" alt="" style="height:30px;border-radius:6px">`:''}<b>${esc(S.hort_name)}</b><span class="sp"></span>${S.feedback_email?`<a class="chip" href="mailto:${esc(S.feedback_email)}?subject=Kindle%20Feedback%20v${esc(S.version)}" style="text-decoration:none;color:inherit">✉ Feedback</a>`:''}<button class="chip" data-logout>${t('logout')}</button></header><div id="tabs"></div><input id="q" type="search" placeholder="${t('search')}"><div id="chips"></div></div><div id="main"></div>`;
  $('#q').oninput=e=>{q=e.target.value.trim().toLowerCase();draw()}}
 
 function draw(){
@@ -128,10 +128,16 @@ function draw(){
 
 const row=k=>`<div class="row"><input type="checkbox" data-sel="${k.id}" ${sel.has(k.id)?'checked':''} aria-label="${esc(k.first_name)}"><div class="nm" data-open="${k.id}"><b>${esc(k.first_name)} ${esc(k.last_name)}</b>${badges(k)}${k.last_note?`<div class="mu">📝 ${esc(k.last_note.note)}</div>`:''}</div><select data-set="${k.id}" style="border-color:${k.status?esc(k.status.color_code):'var(--ln)'}">${sts.map(s=>`<option value="${s.id}" ${k.status&&k.status.id==s.id?'selected':''}>${esc(s.icon)} ${esc(s.label)}</option>`).join('')}</select></div>`;
 
+const beeped=new Set();let ac;
+document.addEventListener('click',()=>{ac=ac||new(window.AudioContext||window.webkitAudioContext)()},{once:true});
+function alertSound(list){list.forEach(({k,a})=>{if(a.state=='upcoming'&&a.minutes_until<=5){const key=k.id+a.title+new Date().toDateString();if(beeped.has(key))return;beeped.add(key);if(navigator.vibrate)navigator.vibrate([200,100,200]);if(ac){const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(ac.currentTime+.4)}}})}
+let audit=[];
 function vRoster(){
  const att=kids.flatMap(k=>k.appointments.filter(a=>a.state=='upcoming'||a.state=='away').map(a=>({k,a}))).sort((x,y)=>x.a.minutes_until-y.a.minutes_until);
  let h='';
- if(att.length)h+=`<div class="card"><b>🔔 ${t('att')}</b>${att.map(({k,a})=>`<div class="li"><span style="color:${esc(a.color)}">●</span> ${short(k)} – ${esc(a.title)} <span class="mu">${a.state=='away'?t('inAppt'):t('in')+' '+a.minutes_until+' '+t('min')}</span></div>`).join('')}</div>`;
+ alertSound(att);const out=kids.filter(k=>k.handover&&!k.handover.back_at),de=L=='de';
+const hb=(k,a)=>{const x=k.handover;if(x&&!x.back_at)return '';return (a.state=='away'&&!x?`<b style="color:var(--bad)"> ⚠ ${de?'nicht losgeschickt!':'not sent yet!'}</b>`:'')+` <button class="chip" data-ho="out:${k.id}">${de?'Übergeben ✓':'Handed over ✓'}</button>`};
+if(att.length||out.length)h+=`<div class="card"><b>🔔 ${t('att')}</b>${att.map(({k,a})=>`<div class="li"${a.state=='upcoming'&&a.minutes_until<=5?' style="color:var(--bad);font-weight:700"':''}><span style="color:${esc(a.color)}">●</span> ${short(k)} – ${esc(a.title)} <span class="mu">${a.state=='away'?t('inAppt'):t('in')+' '+a.minutes_until+' '+t('min')}</span>${hb(k,a)}</div>`).join('')}${out.map(k=>`<div class="li">🚶 ${short(k)} <span class="mu">${de?'unterwegs seit':'out since'} ${k.handover.left_at.slice(11,16)} ${esc(k.handover.left_with||'')}</span> <button class="chip" data-ho="back:${k.id}">${de?'Zurück ✓':'Back ✓'}</button></div>`).join('')}</div>`;
  if(sel.size)h+=`<div class="card bulk"><b>${sel.size} ${t('sel')}</b>${sts.map(s=>`<button class="chip" data-bulk="${s.id}" style="--c:${esc(s.color_code)}">${esc(s.icon)} ${esc(s.label)}</button>`).join('')}<button class="chip" data-clear>${t('clear')}</button></div>`;
  const list=vis().filter(k=>!stf||(k.status&&k.status.id==stf));
  if(!list.length)return h+`<p class="mu">${t('none')}</p>`;
@@ -182,7 +188,9 @@ document.addEventListener('click',async e=>{
   else if('savekid' in d){const f=fields(b.closest('[data-box]'));await api('children/'+cur,'PUT',{first_name:f.first_name,last_name:f.last_name,group_name:f.group_name,custom_fields:parseInfo(f.info)});await load();draw();openChild(cur);toast(t('ok'))}
   else if('note' in d){const v=$('#nn').value.trim();if(!v)return;await api('attendance','POST',{child_id:cur,note:v});await load();draw();openChild(cur)}
   else if('addappt' in d){const f=fields(b.closest('[data-box]')),rc=f.is_recurring;await api('appointments','POST',{child_id:cur,title:f.title,category:f.category,is_recurring:rc,day_of_week:rc?f.day_of_week:null,date:rc?null:(f.date||null),start_time:f.start_time,duration_minutes:f.duration_minutes||45,alert_lead_minutes:f.alert_lead_minutes});await load();draw();openChild(cur);toast(t('ok'))}
-  else if(d.mk){await api(d.mk,'POST',fields(b.closest('[data-box]')));await refresh();toast(t('ok'))}
+  else if(d.ho){const[ac2,id]=d.ho.split(':');const p=prompt(L=='de'?(ac2=='out'?'Übergeben an / begleitet von:':'Zurückgebracht von:'):(ac2=='out'?'Handed over to:':'Brought back by:'));if(p===null)return;await api('handover','POST',{child_id:+id,action:ac2,person:p});await load();draw();toast(t('ok'))}
+
+else if(d.mk){await api(d.mk,'POST',fields(b.closest('[data-box]')));await refresh();toast(t('ok'))}
   else if(d.rm){if(confirm(t('sure'))){await api(d.rm,'DELETE');await refresh();if($('#dlg').open)openChild(cur)}}
   else if(d.pw){const p=prompt(t('pwNew'));if(p){await api('users/'+d.pw,'PUT',{...fields(b.closest('[data-ep]')),password:p});toast(t('ok'))}}
   else if('savesettings' in d)await saveSettings(b.closest('[data-box]'));
@@ -212,7 +220,7 @@ function applyS(){document.documentElement.dataset.theme=S.theme||'wald';documen
 const fields=box=>{const o={};box.querySelectorAll('[name]').forEach(i=>o[i.name]=(i.type=='checkbox'||i.type=='radio')?i.checked:(i.type=='number'||'num' in i.dataset)?+i.value:i.value);return o};
 const parseInfo=s=>Object.fromEntries((s||'').split('\n').map(l=>l.split(/:(.*)/s).map(x=>x.trim())).filter(a=>a[0]&&a[1]));
 const infoText=k=>Object.entries(k.custom_fields||{}).map(([a,b])=>a+': '+b).join('\n');
-async function loadAdmin(){[types,users]=await Promise.all([api('appointment-types'),api('users')])}
+async function loadAdmin(){[types,users,audit]=await Promise.all([api('appointment-types'),api('users'),api('audit')])}
 async function refresh(){await load();if(tab=='settings')await loadAdmin();draw()}
 async function rowSave(el){const row=el.closest('[data-ep]');try{await api(row.dataset.ep+'/'+row.dataset.id,'PUT',fields(row));toast(t('ok'))}catch(e){toast(e.message)}await refresh()}
 async function saveSettings(box){const f=fields(box);
@@ -234,7 +242,8 @@ function vSettings(){
  return `<div class="card" data-box><b>${t('hort')}</b><div class="form"><input name="hort_name" value="${esc(S.hort_name)}">${sel('language',L,[['de','Deutsch'],['en','English']])}${sel('theme',S.theme||'wald',THEMES.map(x=>[x,TL[x]]))}<label><input type="checkbox" name="simple_mode" ${S.simple_mode?'checked':''}> ${t('simple')}</label><label>${t('logo')} <input type="file" id="lg" accept="image/*"></label><button class="pri" data-savesettings>${t('save')}</button></div></div>
  <div class="card"><b>${t('users')}</b>${users.map(u=>ro('users',u.id,`<input name="name" value="${esc(u.name)}"><input name="username" value="${esc(u.username)}">${sel('role',u.role,roles)}`,`<button class="chip" data-pw="${u.id}">🔑</button><button class="chip" data-rm="users/${u.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input name="username" placeholder="${t('user')}"><input name="password" type="password" placeholder="${t('pw')}">${sel('role','staff',roles)}<button class="pri" data-mk="users">${t('addItem')}</button></div></div>
  <div class="card"><b>${t('statuses')}</b>${sts.map(s=>ro('statuses',s.id,`<input type="radio" name="is_default" ${s.is_default?'checked':''}><input name="icon" value="${esc(s.icon)}" style="max-width:60px"><input name="label" value="${esc(s.label)}"><input type="color" name="color_code" value="${esc(s.color_code)}">`,s.is_default?'':`<button class="chip" data-rm="statuses/${s.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="icon" placeholder="🙂"><input name="label" placeholder="${t('name')}"><input type="color" name="color_code" value="#64748b"><button class="pri" data-mk="statuses">${t('addItem')}</button></div></div>
- <div class="card"><b>${t('types')}</b>${types.map(y=>ro('appointment-types',y.id,`<input name="name" value="${esc(y.name)}"><input type="color" name="color" value="${esc(y.color)}"><input type="number" name="default_lead_minutes" value="${y.default_lead_minutes}" min="0" max="240" style="max-width:80px">`,`<button class="chip" data-rm="appointment-types/${y.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input type="color" name="color" value="#6366f1"><input type="number" name="default_lead_minutes" value="15" min="0" max="240"><button class="pri" data-mk="appointment-types">${t('addItem')}</button></div></div>`}
+ <div class="card"><b>${t('types')}</b>${types.map(y=>ro('appointment-types',y.id,`<input name="name" value="${esc(y.name)}"><input type="color" name="color" value="${esc(y.color)}"><input type="number" name="default_lead_minutes" value="${y.default_lead_minutes}" min="0" max="240" style="max-width:80px">`,`<button class="chip" data-rm="appointment-types/${y.id}">🗑</button>`)).join('')}<div class="form" data-box><input name="name" placeholder="${t('name')}"><input type="color" name="color" value="#6366f1"><input type="number" name="default_lead_minutes" value="15" min="0" max="240"><button class="pri" data-mk="appointment-types">${t('addItem')}</button></div></div>
+<div class="card"><b>${L=='de'?'Änderungsprotokoll':'Change log'}</b>${audit.map(x=>`<div class="li mu">${esc(x.at.slice(5,16).replace('T',' '))} · ${esc(x.user)} · ${esc(x.what)}</div>`).join('')}</div>`}
 
 async function openChild(id){
  cur=id;const k=kids.find(x=>x.id==id);if(!k)return;
@@ -264,4 +273,5 @@ setInterval(async()=>{ // keep several staff devices in sync
  if(!tok||document.hidden||!$('#main')||['SELECT','INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
  try{await load();if(!['manage','settings'].includes(tab)&&!$('#dlg').open)keepForms(draw)}catch{}},15000);
 boot();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 </script></body></html>
