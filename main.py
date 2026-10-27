@@ -1,20 +1,43 @@
 """Hort Manager - multi-hort attendance, appointments, daily log, Excel-style Stundenplan.
 Run: uvicorn main:app --reload
+
+Persistence: set DATABASE_URL to a Postgres URL (Render free Postgres works).
+Without DATABASE_URL, falls back to local SQLite file (fine on your PC, wiped on Render redeploys).
 """
 import hashlib
+import os
 import secrets
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, create_engine, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine, UniqueConstraint
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 BASE = Path(__file__).parent
-engine = create_engine(f"sqlite:///{BASE / 'hort.db'}", connect_args={"check_same_thread": False})
+
+
+def _make_engine():
+    url = (os.environ.get("DATABASE_URL") or "").strip()
+    if url:
+        # Render sometimes gives postgres:// — SQLAlchemy needs postgresql://
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        # Render managed Postgres expects SSL; connection string may already include sslmode=
+        kwargs = {"pool_pre_ping": True}
+        if "sslmode=" not in url and ("render.com" in url or "amazonaws.com" in url):
+            kwargs["connect_args"] = {"sslmode": "require"}
+        return create_engine(url, **kwargs)
+    # Local / fallback: SQLite (ephemeral on Render free web disk — use Postgres in production)
+    path = os.environ.get("SQLITE_PATH") or str(BASE / "hort.db")
+    return create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+
+
+engine = _make_engine()
+IS_SQLITE = engine.dialect.name == "sqlite"
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 Base = declarative_base()
 
@@ -202,8 +225,8 @@ def minutes(hhmm: str) -> int:
 
 # ---------------------------------------------------------------- app + auth
 app = FastAPI(title="Hort Manager")
-PUBLIC = {"/api/public", "/api/setup", "/api/login", "/api/trusted-login"}
-MANAGER_WRITE = ("/api/statuses", "/api/appointment-types", "/api/users", "/api/time-slots", "/api/schedule")
+PUBLIC = {"/api/public", "/api/setup", "/api/login", "/api/trusted-login", "/api/health"}
+MANAGER_WRITE = ("/api/statuses", "/api/appointment-types", "/api/users", "/api/time-slots", "/api/schedule", "/api/export", "/api/import")
 # settings + trusted-ips are manager-only write via method checks below
 
 
@@ -704,7 +727,47 @@ def delete_type(tid: int, request: Request, db: Session = Depends(get_db)):
 @app.get("/api/appointments")
 def list_appointments(request: Request, db: Session = Depends(get_db)):
     u = require_user(request, db)
-    return [d(a) for a in db.query(Appointment).filter_by(hort_id=u.hort_id).order_by(Appointment.start_time)]
+    children = {c.id: c for c in db.query(Child).filter_by(hort_id=u.hort_id)}
+    out = []
+    for a in db.query(Appointment).filter_by(hort_id=u.hort_id).order_by(Appointment.start_time):
+        c = children.get(a.child_id)
+        out.append({
+            **d(a),
+            "child_name": f"{c.first_name} {c.last_name}" if c else "?",
+            "group_name": c.group_name if c else "",
+        })
+    return out
+
+
+@app.get("/api/appointments/week")
+def appointments_week(request: Request, db: Session = Depends(get_db), offset: int = 0):
+    """Appointments expanded onto each day of a Mon–Sun week. offset=0 this week, 1 next, -1 previous."""
+    u = require_user(request, db)
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday()) + timedelta(weeks=offset)
+    days = [monday + timedelta(days=i) for i in range(7)]
+    children = {c.id: c for c in db.query(Child).filter_by(hort_id=u.hort_id)}
+    types = {t.name: t for t in db.query(AppointmentType).filter_by(hort_id=u.hort_id)}
+    by_day = {d.isoformat(): [] for d in days}
+    for a in db.query(Appointment).filter_by(hort_id=u.hort_id):
+        for day in days:
+            if not appointment_hits_day(a, day):
+                continue
+            c = children.get(a.child_id)
+            t = types.get(a.category)
+            by_day[day.isoformat()].append({
+                **d(a),
+                "child_name": f"{c.first_name} {c.last_name}" if c else "?",
+                "group_name": c.group_name if c else "",
+                "color": t.color if t else "#64748b",
+            })
+    for k in by_day:
+        by_day[k].sort(key=lambda x: x.get("start_time") or "")
+    return {
+        "offset": offset,
+        "monday": monday.isoformat(),
+        "days": [{"date": d.isoformat(), "weekday": d.weekday(), "items": by_day[d.isoformat()]} for d in days],
+    }
 
 
 def _normalize_appt(data: dict) -> dict:
@@ -1087,16 +1150,147 @@ def seed(hort_id: int, lang="de", demo=True):
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    # lightweight migrations for existing SQLite DBs
-    with engine.connect() as conn:
-        cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(appointments)").fetchall()} if \
-            conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table' AND name='appointments'").fetchone() else set()
-        if cols and "recurrence" not in cols:
-            conn.exec_driver_sql("ALTER TABLE appointments ADD COLUMN recurrence VARCHAR DEFAULT 'weekly'")
-            conn.exec_driver_sql(
-                "UPDATE appointments SET recurrence = CASE WHEN is_recurring = 1 THEN 'weekly' ELSE 'once' END"
-            )
-            conn.commit()
+    if IS_SQLITE:
+        # lightweight migrations for existing SQLite DBs
+        with engine.connect() as conn:
+            has = conn.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='appointments'"
+            ).fetchone()
+            if has:
+                cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(appointments)").fetchall()}
+                if "recurrence" not in cols:
+                    conn.exec_driver_sql("ALTER TABLE appointments ADD COLUMN recurrence VARCHAR DEFAULT 'weekly'")
+                    conn.exec_driver_sql(
+                        "UPDATE appointments SET recurrence = CASE WHEN is_recurring = 1 THEN 'weekly' ELSE 'once' END"
+                    )
+                    conn.commit()
+
+
+@app.get("/api/health")
+def health():
+    return {
+        "ok": True,
+        "db": engine.dialect.name,
+        "persistent": not IS_SQLITE or bool(os.environ.get("SQLITE_PATH")),
+    }
+
+
+@app.get("/api/export")
+def export_data(request: Request, db: Session = Depends(get_db)):
+    """Full backup of the current hort (JSON). Managers only."""
+    u = require_manager(request, db)
+    hid = u.hort_id
+    h = hort_of(u, db)
+
+    def rows(model):
+        return [d(r) for r in db.query(model).filter_by(hort_id=hid).all()]
+
+    return {
+        "version": 1,
+        "exported_at": datetime.now().isoformat(),
+        "hort": hort_public(h),
+        "users": [
+            {"id": x.id, "name": x.name, "username": x.username, "role": x.role, "pw_hash": x.pw_hash}
+            for x in db.query(User).filter_by(hort_id=hid)
+        ],
+        "children": rows(Child),
+        "status_definitions": rows(StatusDefinition),
+        "appointment_types": rows(AppointmentType),
+        "appointments": rows(Appointment),
+        "attendance_logs": rows(AttendanceLog),
+        "time_slots": rows(TimeSlot),
+        "schedule_cells": rows(ScheduleCell),
+        "trusted_ips": h.trusted_ips or [],
+    }
+
+
+@app.post("/api/import")
+def import_data(request: Request, body: dict, db: Session = Depends(get_db)):
+    """Restore a previously exported backup into the current hort. Managers only.
+    Replaces children, statuses, types, appointments, slots, schedule, logs for this hort.
+    Does not change hort code or manager login unless users are in the dump.
+    """
+    u = require_manager(request, db)
+    hid = u.hort_id
+    if not isinstance(body, dict) or body.get("version") != 1:
+        raise HTTPException(400, "Invalid backup file.")
+
+    # wipe hort-scoped data
+    for model in (AttendanceLog, Appointment, ScheduleCell, TimeSlot, AppointmentType, StatusDefinition, Child):
+        db.query(model).filter_by(hort_id=hid).delete()
+
+    def add_many(model, items, skip=("id", "hort_id")):
+        for item in items or []:
+            data = {k: v for k, v in item.items() if k not in skip}
+            db.add(model(hort_id=hid, **data))
+
+    add_many(StatusDefinition, body.get("status_definitions"))
+    add_many(AppointmentType, body.get("appointment_types"))
+    add_many(TimeSlot, body.get("time_slots"))
+    # children first (appointments reference them by old id — remap)
+    old_to_new_child = {}
+    for item in body.get("children") or []:
+        old_id = item.get("id")
+        data = {k: v for k, v in item.items() if k not in ("id", "hort_id")}
+        c = Child(hort_id=hid, **data)
+        db.add(c)
+        db.flush()
+        if old_id is not None:
+            old_to_new_child[old_id] = c.id
+
+    old_to_new_slot = {}
+    for item in body.get("time_slots") or []:
+        pass  # already added; need id map — re-query by order
+    slots = db.query(TimeSlot).filter_by(hort_id=hid).order_by(TimeSlot.sort_order, TimeSlot.id).all()
+    for item, slot in zip(body.get("time_slots") or [], slots):
+        if item.get("id") is not None:
+            old_to_new_slot[item["id"]] = slot.id
+
+    for item in body.get("schedule_cells") or []:
+        data = {k: v for k, v in item.items() if k not in ("id", "hort_id")}
+        sid = data.get("slot_id")
+        if sid in old_to_new_slot:
+            data["slot_id"] = old_to_new_slot[sid]
+        elif sid not in {s.id for s in slots}:
+            continue
+        db.add(ScheduleCell(hort_id=hid, **data))
+
+    for item in body.get("appointments") or []:
+        data = {k: v for k, v in item.items() if k not in ("id", "hort_id")}
+        cid = data.get("child_id")
+        if cid not in old_to_new_child:
+            continue
+        data["child_id"] = old_to_new_child[cid]
+        db.add(Appointment(hort_id=hid, **data))
+
+    for item in body.get("attendance_logs") or []:
+        data = {k: v for k, v in item.items() if k not in ("id", "hort_id")}
+        cid = data.get("child_id")
+        if cid not in old_to_new_child:
+            continue
+        data["child_id"] = old_to_new_child[cid]
+        # timestamps may be strings
+        if isinstance(data.get("timestamp"), str):
+            try:
+                data["timestamp"] = datetime.fromisoformat(data["timestamp"])
+            except ValueError:
+                data["timestamp"] = datetime.now()
+        data["status_id"] = None  # status ids changed
+        db.add(AttendanceLog(hort_id=hid, **data))
+
+    h = hort_of(u, db)
+    if "trusted_ips" in body:
+        h.trusted_ips = body.get("trusted_ips") or []
+    pub = body.get("hort") or {}
+    if pub.get("hort_name"):
+        h.name = pub["hort_name"]
+    if pub.get("theme"):
+        h.theme = pub["theme"]
+    if pub.get("logo") is not None:
+        h.logo = pub["logo"] or ""
+
+    db.commit()
+    return {"ok": True, "children": len(old_to_new_child)}
 
 
 @app.get("/")
